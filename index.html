@@ -1290,6 +1290,56 @@
         }
     ];
 
+    // ===== COSTANTI, RIFERIMENTI DOM, CONFIG PEER =====
+const LOGICAL_W = 360, LOGICAL_H = 600;
+const BALL_R = 7, HOLE_R = 13;
+const STOP_SPEED = 0.06, SUBSTEPS = 8;
+const MAX_DRAG = 110, CANCEL_DRAG = 10, MAX_POWER = 10;
+const BASE_FRICTION = 0.982, SAND_FRICTION = 0.93;
+
+const PEER_PREFIX = 'minigolfpro-';
+const PEER_CONFIG = {
+    debug: 1,
+    config: {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+        ]
+    }
+};
+const PLAYER_COLORS = ['#38bdf8', '#f472b6', '#facc15', '#a78bfa', '#fb923c', '#f87171'];
+
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const canvasContainer = document.getElementById('canvas-container');
+const screenHome = document.getElementById('screen-home');
+const screenLobby = document.getElementById('screen-lobby');
+const gameHud = document.getElementById('game-hud');
+const modalResults = document.getElementById('modal-results');
+const toastMsg = document.getElementById('toast-msg');
+const hintBanner = document.getElementById('hint-banner');
+const hudRoomBadge = document.getElementById('hud-room-badge');
+const hudHoleName = document.getElementById('hud-hole-name');
+const uiHole = document.getElementById('ui-hole');
+const uiPar = document.getElementById('ui-par');
+const uiStrokes = document.getElementById('ui-strokes');
+const uiTotal = document.getElementById('ui-total');
+
+function setConnStatus(state, label) {
+    const dot = document.getElementById('conn-dot');
+    const lbl = document.getElementById('conn-label');
+    const colors = { connecting: 'bg-amber-400 animate-pulse', ready: 'bg-emerald-400', error: 'bg-rose-500' };
+    dot.className = 'w-2.5 h-2.5 rounded-full ' + (colors[state] || colors.ready);
+    lbl.textContent = label;
+}
+function initPeerStatus() {
+    setConnStatus(typeof window.Peer === 'undefined' ? 'error' : 'ready',
+                  typeof window.Peer === 'undefined' ? 'Offline' : 'Pronto P2P');
+}
+
     // =========================================================================
     // STATO MULTIPLAYER & PARTITA
     // =========================================================================
@@ -2973,12 +3023,13 @@
 
     // Avvio
     window.onload = function () {
-        setMaxPlayers(4);
-        setHolesCount(5);
-        setOrderMode('random');
-        resizeCanvas();
-        gameLoop();
-    };
+    initPeerStatus();
+    setMaxPlayers(4);
+    setHolesCount(5);
+    setOrderMode('random');
+    resizeCanvas();
+    gameLoop();
+};
 })();
 </script>
 </body>
