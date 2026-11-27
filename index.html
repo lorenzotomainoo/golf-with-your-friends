@@ -1,0 +1,2985 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MINI GOLF PRO — MULTIPLAYER</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        input {
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100dvh;
+            overflow: hidden;
+            touch-action: none;
+            background: #071912;
+            font-family: 'Inter', sans-serif;
+        }
+        .font-display {
+            font-family: 'Fredoka', sans-serif;
+        }
+        #app-root {
+            position: fixed;
+            inset: 0;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            background: radial-gradient(circle at 50% 20%, #153f2e 0%, #071912 100%);
+        }
+        #canvas-container {
+            position: relative;
+            flex: 1;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 6px;
+        }
+        canvas {
+            display: block;
+            border-radius: 20px;
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.65), 0 0 0 3px rgba(255, 255, 255, 0.08);
+            touch-action: none;
+        }
+        .btn-3d {
+            transition: transform 0.1s ease, filter 0.15s ease;
+        }
+        .btn-3d:active {
+            transform: scale(0.96) translateY(2px);
+        }
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.92) translateY(10px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-pop {
+            animation: popIn 0.26s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        @keyframes podiumRise {
+            0% { transform: translateY(24px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        .podium-col {
+            animation: podiumRise 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 8px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(52,211,153,0.35); border-radius: 8px; }
+
+        /* Slider con pallina da golf come thumb */
+        input[type="range"].golf-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(52, 211, 153, 0.35);
+            border-radius: 999px;
+        }
+        input[type="range"].golf-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 32% 30%, #ffffff 0%, #e2e8f0 65%, #94a3b8 100%);
+            border: 2px solid #10b981;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55), inset -2px -2px 4px rgba(100, 116, 139, 0.35);
+            cursor: pointer;
+        }
+        input[type="range"].golf-slider::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 32% 30%, #ffffff 0%, #e2e8f0 65%, #94a3b8 100%);
+            border: 2px solid #10b981;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+            cursor: pointer;
+        }
+        @keyframes flagWave {
+            0%, 100% { transform: rotate(-2deg) skewX(0deg); }
+            50% { transform: rotate(3deg) skewX(-5deg); }
+        }
+        .animate-flag {
+            transform-origin: 6px 8px;
+            animation: flagWave 2.4s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+<div id="app-root">
+
+    <!-- ===================================================================== -->
+    <!-- SFONDO ANIMATO A TEMA GOLF (ATTIVO SOLO SU HOME & LOBBY) -->
+    <!-- ===================================================================== -->
+    <canvas id="menu-bg-canvas" class="fixed inset-0 w-full h-full z-30 pointer-events-none" style="border-radius:0; box-shadow:none;"></canvas>
+
+    <!-- ===================================================================== -->
+    <!-- SCHERMATA HOME (SOLO MULTIPLAYER) -->
+    <!-- ===================================================================== -->
+    <section id="screen-home" class="fixed inset-0 z-40 flex flex-col items-center justify-center p-4 bg-gradient-to-b from-slate-950/35 via-emerald-950/25 to-slate-950/60 overflow-y-auto custom-scroll">
+        <div class="w-full max-w-sm flex flex-col gap-3.5 animate-pop my-auto py-2">
+
+            <!-- Header Logo + Stato Connessione + Audio -->
+            <div class="text-center relative">
+                <div class="absolute left-0 top-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-slate-950/65 backdrop-blur-md border border-white/15 shadow-lg">
+                    <span id="conn-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="conn-label" class="text-[10px] font-bold text-slate-100 uppercase tracking-wider">Connessione...</span>
+                </div>
+
+                <button id="home-audio-btn" title="Audio" class="btn-3d absolute right-0 top-0 w-9 h-9 rounded-2xl bg-slate-950/65 backdrop-blur-md border border-emerald-400/35 text-emerald-100 flex items-center justify-center shadow-lg">
+                    <svg class="icon-sound-on w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                    <svg class="icon-sound-off w-4 h-4 hidden text-rose-400" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
+                </button>
+
+                <!-- Logo Golf con Pallina (dimples), Buca e Bandierina Animata -->
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-400 via-green-600 to-emerald-800 shadow-2xl shadow-emerald-500/35 mb-2 mt-6 border-2 border-white/30 relative">
+                    <svg class="w-11 h-11 drop-shadow-md" viewBox="0 0 48 48" fill="none">
+                        <!-- Green & Buca -->
+                        <ellipse cx="22" cy="39" rx="16" ry="4.5" fill="#064e3b" fill-opacity="0.7"/>
+                        <ellipse cx="20" cy="38.5" rx="7" ry="2.4" fill="#0f172a"/>
+                        <!-- Asta Bandierina -->
+                        <path d="M20 38V9" stroke="#f8fafc" stroke-width="2.6" stroke-linecap="round"/>
+                        <!-- Bandierina Rossa Animata -->
+                        <g class="animate-flag">
+                            <path d="M21 10L37 15.5L21 21Z" fill="#ef4444" stroke="#fecaca" stroke-width="1"/>
+                        </g>
+                        <!-- Pallina da Golf con Fossette (Dimples) -->
+                        <circle cx="33" cy="34" r="7.5" fill="url(#golfBallGrad)" stroke="#cbd5e1" stroke-width="0.9"/>
+                        <circle cx="30.5" cy="32" r="0.9" fill="#94a3b8"/>
+                        <circle cx="33.5" cy="31" r="0.9" fill="#94a3b8"/>
+                        <circle cx="36" cy="33" r="0.9" fill="#94a3b8"/>
+                        <circle cx="32" cy="35" r="0.9" fill="#94a3b8"/>
+                        <circle cx="35" cy="36.2" r="0.9" fill="#94a3b8"/>
+                        <defs>
+                            <radialGradient id="golfBallGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(30 31) rotate(45) scale(11)">
+                                <stop stop-color="#ffffff"/>
+                                <stop offset="0.7" stop-color="#e2e8f0"/>
+                                <stop offset="1" stop-color="#94a3b8"/>
+                            </radialGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h1 class="font-display text-2xl sm:text-3xl font-bold tracking-tight text-white drop-shadow-[0_3px_10px_rgba(0,0,0,0.7)]">
+                    MINI GOLF <span class="text-amber-300">PRO</span>
+                </h1>
+                <div class="inline-flex items-center gap-1.5 mt-1 px-3 py-0.5 rounded-full bg-slate-950/65 backdrop-blur-md border border-emerald-400/40 text-emerald-200 text-[10px] font-bold uppercase tracking-widest shadow">
+                    <span>⛳</span> Clubhouse Online • 15 Buche
+                </div>
+            </div>
+
+            <!-- Banner Avvisi / Errori -->
+            <div id="home-alert" class="hidden px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-center border backdrop-blur-md"></div>
+
+            <!-- Campo Nome Giocatore -->
+            <div class="bg-slate-950/68 backdrop-blur-md border border-white/15 rounded-3xl p-3.5 shadow-xl">
+                <label for="input-player-name" class="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-emerald-300 font-bold mb-1.5">
+                    <span>🏌️</span> Il tuo nome giocatore
+                </label>
+                <input id="input-player-name" type="text" maxlength="14" placeholder="Es. Marco"
+                    class="w-full px-3.5 py-2.5 rounded-2xl bg-black/45 border border-white/15 text-white text-sm font-semibold focus:outline-none focus:border-emerald-400">
+            </div>
+
+            <!-- Card 1: CREA LOBBY -->
+            <div class="bg-slate-950/72 backdrop-blur-md border border-emerald-400/40 rounded-3xl p-4 shadow-2xl">
+                <div class="flex items-center justify-between mb-2.5">
+                    <h2 class="font-display text-lg font-bold text-white flex items-center gap-1.5">
+                        <span>⛳</span> Crea Lobby
+                    </h2>
+                    <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">Host</span>
+                </div>
+
+                <!-- Max Giocatori (2–6) -->
+                <div class="mb-3">
+                    <div class="flex items-center justify-between text-xs mb-1.5">
+                        <span class="text-emerald-200/90 font-semibold">Max Giocatori</span>
+                        <span id="lbl-max-players" class="font-display text-sm font-bold text-white">4</span>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1.5">
+                        <button data-p="2" class="btn-max-p btn-3d py-1.5 rounded-xl text-xs font-bold border border-white/10 bg-white/5 text-slate-200">2</button>
+                        <button data-p="3" class="btn-max-p btn-3d py-1.5 rounded-xl text-xs font-bold border border-white/10 bg-white/5 text-slate-200">3</button>
+                        <button data-p="4" class="btn-max-p btn-3d py-1.5 rounded-xl text-xs font-bold border border-emerald-400 bg-emerald-400/25 text-white">4</button>
+                        <button data-p="5" class="btn-max-p btn-3d py-1.5 rounded-xl text-xs font-bold border border-white/10 bg-white/5 text-slate-200">5</button>
+                        <button data-p="6" class="btn-max-p btn-3d py-1.5 rounded-xl text-xs font-bold border border-white/10 bg-white/5 text-slate-200">6</button>
+                    </div>
+                </div>
+
+                <!-- Numero Buche (1–15) -->
+                <div class="mb-3">
+                    <div class="flex items-center justify-between text-xs mb-1.5">
+                        <span class="text-emerald-200/90 font-semibold">Numero di Buche</span>
+                        <span id="lbl-holes-count" class="font-display text-sm font-bold text-white">5</span>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1.5 mb-2">
+                        <button data-n="3" class="btn-holes-preset btn-3d py-1.5 rounded-xl text-xs font-bold border border-white/10 bg-white/5 text-slate-200">3</button>
+                        <button data-n="5" class="btn-holes-preset btn-3d py-1.5 rounded-xl text-xs font-bold border border-emerald-400 bg-emerald-400/25 text-white">5</button>
+                        <button data-n="9" class="btn-holes-preset btn-3d py-1.5 rounded-xl text-xs font-bold border border-white/10 bg-white/5 text-slate-200">9</button>
+                        <button data-n="12" class="btn-holes-preset btn-3d py-1.5 rounded-xl text-xs font-bold border border-white/10 bg-white/5 text-slate-200">12</button>
+                        <button data-n="15" class="btn-holes-preset btn-3d py-1.5 rounded-xl text-xs font-bold border border-white/10 bg-white/5 text-slate-200">15</button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="btn-holes-minus" class="btn-3d w-8 h-8 rounded-xl bg-white/10 border border-white/15 text-white font-bold flex items-center justify-center">−</button>
+                        <input id="slider-holes" type="range" min="1" max="15" value="5" class="golf-slider flex-1 h-2.5 cursor-pointer">
+                        <button id="btn-holes-plus" class="btn-3d w-8 h-8 rounded-xl bg-white/10 border border-white/15 text-white font-bold flex items-center justify-center">+</button>
+                    </div>
+                </div>
+
+                <!-- Ordine Buche (Casuale / Sequenziale) -->
+                <div class="mb-3.5">
+                    <div class="text-xs text-emerald-200/90 font-semibold mb-1.5">Ordine Buche</div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button data-ord="random" class="btn-order btn-3d py-2 rounded-xl text-xs font-bold border border-emerald-400 bg-emerald-400/25 text-white">🎲 Casuale</button>
+                        <button data-ord="sequential" class="btn-order btn-3d py-2 rounded-xl text-xs font-bold border border-white/10 bg-white/5 text-slate-200">📋 Sequenziale</button>
+                    </div>
+                </div>
+
+                <button id="btn-create-room" class="btn-3d w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-400 to-green-500 text-emerald-950 font-display text-base font-bold shadow-lg shadow-emerald-500/30">
+                    Crea Stanza ⛳
+                </button>
+            </div>
+
+            <!-- Card 2: ENTRA IN LOBBY -->
+            <div class="bg-slate-950/72 backdrop-blur-md border border-amber-400/35 rounded-3xl p-4 shadow-2xl">
+                <h2 class="font-display text-lg font-bold text-white mb-2 flex items-center gap-1.5">
+                    <span>🏌️‍♂️</span> Entra in Lobby
+                </h2>
+                <div class="flex gap-2">
+                    <input id="input-join-code" type="text" maxlength="5" placeholder="CODICE (es. A7K9P)"
+                        class="flex-1 px-3.5 py-2.5 rounded-2xl bg-black/45 border border-white/15 text-white text-sm font-bold uppercase tracking-widest focus:outline-none focus:border-amber-400">
+                    <button id="btn-join-room" class="btn-3d px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-300 to-amber-500 text-slate-950 font-display text-sm font-bold shadow-lg shadow-amber-500/25">
+                        Entra
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SALA D'ATTESA (LOBBY) -->
+    <!-- ===================================================================== -->
+    <section id="screen-lobby" class="hidden fixed inset-0 z-40 flex flex-col items-center justify-center p-4 bg-gradient-to-b from-slate-950/45 via-emerald-950/35 to-slate-950/70 overflow-y-auto custom-scroll">
+        <div class="w-full max-w-sm flex flex-col gap-3.5 animate-pop my-auto py-2">
+            <div class="text-center">
+                <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-slate-950/65 backdrop-blur-md text-amber-300 border border-amber-400/40">
+                    ⛳ Sala d'Attesa Clubhouse
+                </span>
+                <h2 class="font-display text-2xl font-bold text-white mt-1.5 drop-shadow">Lobby Multiplayer</h2>
+            </div>
+
+            <div id="lobby-alert" class="hidden px-3.5 py-2 rounded-2xl text-xs font-semibold text-center border backdrop-blur-md"></div>
+
+            <!-- Codice Stanza + Copia + Condividi -->
+            <div class="bg-slate-950/72 backdrop-blur-md border border-emerald-400/40 rounded-3xl p-4 text-center shadow-2xl">
+                <div class="text-[10px] uppercase tracking-widest text-emerald-300 font-bold mb-1">Codice Stanza</div>
+                <div id="lobby-room-code" class="font-display text-4xl font-bold tracking-[0.2em] text-white mb-3">-----</div>
+
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <button id="btn-copy-code" class="btn-3d py-2 rounded-xl bg-white/15 border border-white/20 text-white text-xs font-bold">
+                        📋 Copia Codice
+                    </button>
+                    <button id="btn-share-code" class="btn-3d py-2 rounded-xl bg-emerald-500/30 border border-emerald-400/40 text-emerald-100 text-xs font-bold">
+                        📤 Condividi
+                    </button>
+                </div>
+
+                <div id="lobby-settings-summary" class="text-xs text-emerald-200/90 font-medium">
+                    Giocatori: 1/4 • Buche: 5 • Casuale
+                </div>
+            </div>
+
+            <!-- Lista Giocatori Live -->
+            <div class="bg-slate-950/70 backdrop-blur-md border border-white/15 rounded-3xl p-3.5 shadow-xl">
+                <div class="text-[10px] uppercase tracking-wider text-emerald-300 font-bold mb-2">🏌️ Giocatori Connessi</div>
+                <ul id="lobby-player-list" class="flex flex-col gap-2"></ul>
+            </div>
+
+            <!-- Controlli Host -->
+            <div id="lobby-host-box" class="hidden flex flex-col gap-1.5">
+                <button id="btn-start-match" class="btn-3d w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-400 to-green-500 text-emerald-950 font-display text-lg font-bold shadow-lg shadow-emerald-500/30">
+                    Avvia Partita ▶
+                </button>
+                <p class="text-[11px] text-center text-emerald-100/80 drop-shadow">Puoi avviare anche da solo per testare, oppure attendere fino a 6 giocatori.</p>
+            </div>
+
+            <!-- Messaggio Ospiti -->
+            <div id="lobby-guest-box" class="hidden text-center py-3 px-4 rounded-2xl bg-slate-950/65 backdrop-blur-md border border-white/15 text-xs text-emerald-200 font-medium">
+                In attesa che l'Host avvii la partita...
+            </div>
+
+            <button id="btn-leave-lobby" class="btn-3d w-full py-3 rounded-2xl bg-rose-950/75 backdrop-blur-md border border-rose-400/40 text-rose-200 font-display text-sm font-bold shadow-lg">
+                Esci dalla Lobby
+            </button>
+        </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- HUD SUPERIORE DI GIOCO -->
+    <!-- ===================================================================== -->
+    <header id="game-hud" class="hidden w-full max-w-md px-2.5 pt-2 pb-1 flex flex-col gap-1.5 z-20">
+        <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+                <span id="hud-room-badge" class="shrink-0 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-violet-400/25 text-violet-200 border border-violet-400/40">
+                    -----
+                </span>
+                <span id="hud-hole-name" class="font-display text-sm font-bold text-white truncate">
+                    Prato Verde
+                </span>
+            </div>
+
+            <div class="flex items-center gap-1.5 shrink-0">
+                <button id="btn-hud-liveboard" title="Classifica Live" class="btn-3d px-2.5 h-8 rounded-xl bg-violet-600/85 border border-violet-400/50 text-white text-xs font-bold flex items-center gap-1 shadow">
+                    🏆 <span id="hud-live-rank">#1</span>
+                </button>
+                <button id="btn-hud-audio" title="Audio" class="btn-3d w-8 h-8 rounded-xl bg-emerald-900/90 border border-emerald-600/40 text-emerald-100 flex items-center justify-center">
+                    <svg class="icon-sound-on w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                    <svg class="icon-sound-off w-4 h-4 hidden text-rose-400" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
+                </button>
+                <button id="btn-hud-exit" title="Esci" class="btn-3d px-2.5 h-8 rounded-xl bg-rose-500/20 border border-rose-400/35 text-rose-200 text-xs font-bold flex items-center justify-center">
+                    Esci
+                </button>
+            </div>
+        </div>
+
+        <!-- Barra Statistiche Compatta -->
+        <div class="grid grid-cols-4 gap-1 bg-emerald-950/85 backdrop-blur-md border border-emerald-700/40 rounded-2xl px-2 py-1 shadow-lg text-center">
+            <div class="leading-tight">
+                <div class="text-[9px] uppercase tracking-wider text-emerald-300/75 font-semibold">Buca</div>
+                <div id="ui-hole" class="font-display text-sm font-bold text-white">1/5</div>
+            </div>
+            <div class="leading-tight border-l border-emerald-700/40">
+                <div class="text-[9px] uppercase tracking-wider text-emerald-300/75 font-semibold">Par</div>
+                <div id="ui-par" class="font-display text-sm font-bold text-amber-300">2</div>
+            </div>
+            <div class="leading-tight border-l border-emerald-700/40">
+                <div class="text-[9px] uppercase tracking-wider text-emerald-300/75 font-semibold">Colpi</div>
+                <div id="ui-strokes" class="font-display text-sm font-bold text-white">0</div>
+            </div>
+            <div class="leading-tight border-l border-emerald-700/40">
+                <div class="text-[9px] uppercase tracking-wider text-emerald-300/75 font-semibold">Totale</div>
+                <div id="ui-total" class="font-display text-sm font-bold text-violet-300">0</div>
+            </div>
+        </div>
+
+        <!-- Classifica Live Espandibile -->
+        <div id="mp-liveboard-panel" class="hidden bg-slate-950/92 backdrop-blur-md border border-violet-400/35 rounded-2xl p-2.5 shadow-xl text-xs">
+            <div class="flex items-center justify-between mb-1.5 text-[10px] uppercase tracking-wider text-violet-300 font-bold">
+                <span>Classifica Live</span>
+                <span id="mp-live-done-count">0/0 imbucati</span>
+            </div>
+            <div id="mp-liveboard-rows" class="flex flex-col gap-1 max-h-40 overflow-y-auto custom-scroll"></div>
+            <button id="btn-host-force-panel" class="hidden btn-3d mt-2 w-full py-1.5 rounded-xl bg-amber-400/20 border border-amber-400/40 text-amber-200 text-[11px] font-bold">
+                Forza prossima buca (Host) →
+            </button>
+        </div>
+    </header>
+
+    <!-- ===================================================================== -->
+    <!-- AREA CANVAS DI GIOCO -->
+    <!-- ===================================================================== -->
+    <main id="canvas-container" class="hidden">
+        <canvas id="game-canvas"></canvas>
+
+        <!-- Toast informativo -->
+        <div id="toast-msg" class="pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-slate-900/90 text-white text-xs font-semibold tracking-wide shadow-lg border border-white/15 opacity-0 transition-opacity duration-300 z-20 whitespace-nowrap">
+            Buca 1
+        </div>
+
+        <!-- Suggerimento iniziale -->
+        <div id="hint-banner" class="pointer-events-none absolute bottom-5 left-1/2 -translate-x-1/2 px-4 py-2 rounded-2xl bg-black/70 backdrop-blur-sm text-emerald-100 text-xs font-medium text-center border border-white/10 transition-opacity duration-500 z-20">
+            Trascina ovunque sullo schermo per mirare e tirare
+        </div>
+
+        <!-- Banner non invasivo dopo imbucata -->
+        <div id="mp-wait-banner" class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-xs bg-slate-950/90 backdrop-blur-md border border-emerald-400/45 rounded-2xl p-3 text-center shadow-2xl z-20 animate-pop">
+            <div id="mp-wait-title" class="font-display text-base font-bold text-emerald-300">Imbucata in 2 colpi! ✓</div>
+            <p id="mp-wait-sub" class="text-xs text-slate-300 mt-0.5">In attesa degli altri giocatori...</p>
+            <button id="btn-host-force-banner" class="hidden btn-3d mt-2 w-full py-2 rounded-xl bg-amber-400/20 border border-amber-400/40 text-amber-200 text-xs font-bold">
+                Forza prossima buca (Host) →
+            </button>
+        </div>
+    </main>
+
+    <!-- ===================================================================== -->
+    <!-- SCHERMATA FINALE: PODIO & SCORECARD MULTIPLAYER -->
+    <!-- ===================================================================== -->
+    <div id="modal-results" class="hidden fixed inset-0 bg-black/82 backdrop-blur-md z-30 flex items-center justify-center p-4">
+        <div class="animate-pop w-full max-w-md bg-gradient-to-b from-indigo-950 to-slate-950 border border-violet-400/40 rounded-3xl p-5 shadow-2xl max-h-[92dvh] flex flex-col">
+            <div class="text-center mb-3">
+                <div class="text-[11px] uppercase tracking-widest text-amber-300 font-bold">Partita Terminata</div>
+                <h2 class="font-display text-2xl font-bold text-white">Podio &amp; Classifica</h2>
+            </div>
+
+            <!-- Podio Top 3 Animato -->
+            <div id="results-podium" class="flex items-end justify-center gap-2 mb-4 px-2 min-h-[112px]"></div>
+
+            <!-- Scorecard Completa Buca per Buca -->
+            <div class="custom-scroll overflow-auto flex-1 bg-black/40 rounded-2xl p-2.5 border border-white/10 mb-4">
+                <table class="w-full text-xs text-left whitespace-nowrap">
+                    <thead id="results-sc-head"></thead>
+                    <tbody id="results-sc-body" class="divide-y divide-white/5 text-white"></tbody>
+                </table>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <button id="btn-rematch-host" class="hidden btn-3d w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-400 to-green-500 text-emerald-950 font-display text-base font-bold shadow-lg shadow-emerald-500/25">
+                    Nuova Partita (Stessa Lobby) 🔄
+                </button>
+                <div id="results-guest-wait" class="hidden text-center text-[11px] text-violet-200/80 py-1">
+                    In attesa che l'Host avvii una nuova partita...
+                </div>
+                <button id="btn-results-home" class="btn-3d w-full py-2.5 rounded-2xl bg-white/10 border border-white/15 text-white font-display text-sm font-bold">
+                    Torna alla Home
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(() => {
+    // =========================================================================
+    // SFONDO ANIMATO A TEMA GOLF (CANVAS DEDICATO PER HOME & LOBBY)
+    // =========================================================================
+    const MenuBg = (() => {
+        const bgCanvas = document.getElementById('menu-bg-canvas');
+        const bctx = bgCanvas ? bgCanvas.getContext('2d') : null;
+        let w = window.innerWidth;
+        let h = window.innerHeight;
+        let t = 0;
+        let active = true;
+        let rafId = null;
+
+        const clouds = [
+            { x: 0.12, y: 0.12, s: 1.0, spd: 0.00018 },
+            { x: 0.55, y: 0.08, s: 1.3, spd: 0.00013 },
+            { x: 0.85, y: 0.18, s: 0.85, spd: 0.00022 }
+        ];
+
+        const stars = Array.from({ length: 26 }, (_, i) => ({
+            x: ((i * 73) % 100) / 100,
+            y: ((i * 41) % 34) / 100,
+            r: 0.8 + (i % 3) * 0.55,
+            phase: i * 0.7
+        }));
+
+        const carts = [
+            { x: 0.15, dir: 1, speed: 0.00075, layer: 1, wheelAngle: 0, color: '#f8fafc', roof: '#10b981' },
+            { x: 0.82, dir: -1, speed: 0.00052, layer: 0, wheelAngle: 0, color: '#fef3c7', roof: '#f59e0b' }
+        ];
+
+        const flyingBalls = [];
+        const bgSparks = [];
+        let nextBallTimer = 45;
+
+        function resize() {
+            if (!bgCanvas || !bctx) return;
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            w = window.innerWidth;
+            h = window.innerHeight;
+            bgCanvas.width = Math.floor(w * dpr);
+            bgCanvas.height = Math.floor(h * dpr);
+            bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function hillY(x, basePct, amp1, freq1, amp2, freq2, phase = 0) {
+            return h * basePct
+                + Math.sin(x * freq1 + phase) * amp1
+                + Math.cos(x * freq2 + phase * 0.6) * amp2;
+        }
+
+        function spawnGolfBall() {
+            const leftToRight = Math.random() > 0.4;
+            const startX = leftToRight ? -20 : w + 20;
+            const targetX = leftToRight ? w * (0.62 + Math.random() * 0.24) : w * (0.14 + Math.random() * 0.24);
+            const targetY = hillY(targetX, 0.84, 24, 0.006, 10, 0.013, 1.2) + 8;
+            const startY = h * (0.52 + Math.random() * 0.12);
+            const peakY = h * (0.12 + Math.random() * 0.14);
+            flyingBalls.push({
+                p: 0,
+                speed: 0.0085 + Math.random() * 0.004,
+                sx: startX, sy: startY,
+                cx: (startX + targetX) * 0.5, cy: peakY,
+                tx: targetX, ty: targetY,
+                trail: [],
+                rot: 0
+            });
+        }
+
+        function spawnGrassSparks(x, y) {
+            const cols = ['#fde047', '#ffffff', '#4ade80', '#86efac'];
+            for (let i = 0; i < 12; i++) {
+                const a = -Math.PI + Math.random() * Math.PI;
+                const spd = 1.2 + Math.random() * 2.6;
+                bgSparks.push({
+                    x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd - 1.2,
+                    r: 1.8 + Math.random() * 2, life: 1, color: cols[i % cols.length]
+                });
+            }
+        }
+
+        function drawTree(x, y, scale, dark) {
+            bctx.save();
+            bctx.translate(x, y);
+            bctx.scale(scale, scale);
+            bctx.fillStyle = '#3f2e21';
+            bctx.fillRect(-3, -10, 6, 14);
+            bctx.fillStyle = dark ? '#064e3b' : '#15803d';
+            bctx.beginPath();
+            bctx.moveTo(0, -42);
+            bctx.quadraticCurveTo(14, -22, 11, -8);
+            bctx.lineTo(-11, -8);
+            bctx.quadraticCurveTo(-14, -22, 0, -42);
+            bctx.fill();
+            bctx.fillStyle = dark ? '#065f46' : '#22c55e';
+            bctx.beginPath();
+            bctx.moveTo(-1, -40);
+            bctx.quadraticCurveTo(-9, -22, -7, -10);
+            bctx.lineTo(1, -10);
+            bctx.closePath();
+            bctx.fill();
+            bctx.restore();
+        }
+
+        function drawFlag(x, y, scale, flagColor) {
+            bctx.save();
+            bctx.translate(x, y);
+            bctx.scale(scale, scale);
+            // Buca
+            bctx.fillStyle = '#0f172a';
+            bctx.beginPath();
+            bctx.ellipse(0, 0, 11, 3.8, 0, 0, Math.PI * 2);
+            bctx.fill();
+            bctx.strokeStyle = 'rgba(255,255,255,0.35)';
+            bctx.lineWidth = 1.2;
+            bctx.stroke();
+            // Asta
+            bctx.strokeStyle = '#f8fafc';
+            bctx.lineWidth = 2.4;
+            bctx.beginPath();
+            bctx.moveTo(0, 0);
+            bctx.lineTo(0, -46);
+            bctx.stroke();
+            // Bandierina che sventola
+            const wave1 = Math.sin(t * 4.5 + x * 0.05) * 4;
+            const wave2 = Math.cos(t * 4.5 + x * 0.05) * 3;
+            bctx.fillStyle = flagColor;
+            bctx.beginPath();
+            bctx.moveTo(1, -46);
+            bctx.quadraticCurveTo(14, -43 + wave1, 28, -38 + wave2);
+            bctx.lineTo(1, -29);
+            bctx.closePath();
+            bctx.fill();
+            bctx.restore();
+        }
+
+        function drawGolfCart(cart, x, y, angle, scale) {
+            bctx.save();
+            bctx.translate(x, y - 5 * scale);
+            bctx.rotate(angle);
+            bctx.scale(cart.dir * scale, scale);
+
+            // Fascio faro anteriore
+            const beam = bctx.createLinearGradient(22, -10, 68, -4);
+            beam.addColorStop(0, 'rgba(254, 240, 138, 0.35)');
+            beam.addColorStop(1, 'rgba(254, 240, 138, 0)');
+            bctx.fillStyle = beam;
+            bctx.beginPath();
+            bctx.moveTo(22, -11);
+            bctx.lineTo(68, -22);
+            bctx.lineTo(68, 4);
+            bctx.lineTo(22, -6);
+            bctx.closePath();
+            bctx.fill();
+
+            // Ombra a terra
+            bctx.fillStyle = 'rgba(0,0,0,0.3)';
+            bctx.beginPath();
+            bctx.ellipse(0, 5, 25, 4.5, 0, 0, Math.PI * 2);
+            bctx.fill();
+
+            // Sacca da golf sul retro + mazze
+            bctx.save();
+            bctx.translate(-22, -14);
+            bctx.rotate(-0.22);
+            bctx.strokeStyle = '#cbd5e1';
+            bctx.lineWidth = 1.6;
+            bctx.beginPath();
+            bctx.moveTo(-2, -12); bctx.lineTo(-4, -21);
+            bctx.moveTo(1, -12); bctx.lineTo(1, -22);
+            bctx.moveTo(4, -12); bctx.lineTo(6, -19);
+            bctx.stroke();
+            bctx.fillStyle = '#dc2626';
+            bctx.beginPath();
+            bctx.roundRect(-5, -13, 10, 15, 3);
+            bctx.fill();
+            bctx.restore();
+
+            // Carrozzeria
+            bctx.fillStyle = cart.color;
+            bctx.beginPath();
+            bctx.roundRect(-20, -15, 42, 13, 5);
+            bctx.fill();
+            // Sedile
+            bctx.fillStyle = '#334155';
+            bctx.beginPath();
+            bctx.roundRect(-12, -21, 14, 7, 2);
+            bctx.fill();
+            // Montanti tettuccio e parabrezza
+            bctx.strokeStyle = '#94a3b8';
+            bctx.lineWidth = 2;
+            bctx.beginPath();
+            bctx.moveTo(-14, -15); bctx.lineTo(-14, -33);
+            bctx.moveTo(13, -15); bctx.lineTo(10, -33);
+            bctx.stroke();
+            bctx.strokeStyle = 'rgba(186,230,253,0.65)';
+            bctx.lineWidth = 2.5;
+            bctx.beginPath();
+            bctx.moveTo(12, -16); bctx.lineTo(9.5, -31);
+            bctx.stroke();
+            // Tettuccio
+            bctx.fillStyle = cart.roof;
+            bctx.beginPath();
+            bctx.roundRect(-18, -36, 33, 4.5, 2.5);
+            bctx.fill();
+
+            // Ruote rotanti
+            [-12, 13].forEach(wx => {
+                bctx.save();
+                bctx.translate(wx, -1);
+                bctx.rotate(cart.wheelAngle);
+                bctx.fillStyle = '#0f172a';
+                bctx.beginPath(); bctx.arc(0, 0, 6.2, 0, Math.PI * 2); bctx.fill();
+                bctx.fillStyle = '#e2e8f0';
+                bctx.beginPath(); bctx.arc(0, 0, 2.8, 0, Math.PI * 2); bctx.fill();
+                bctx.strokeStyle = '#64748b';
+                bctx.lineWidth = 1.1;
+                bctx.beginPath();
+                bctx.moveTo(-2.8, 0); bctx.lineTo(2.8, 0);
+                bctx.moveTo(0, -2.8); bctx.lineTo(0, 2.8);
+                bctx.stroke();
+                bctx.restore();
+            });
+
+            bctx.restore();
+        }
+
+        function drawGolfBall(x, y, r, rot) {
+            bctx.save();
+            bctx.translate(x, y);
+            bctx.rotate(rot);
+            const g = bctx.createRadialGradient(-r * 0.3, -r * 0.3, 1, 0, 0, r);
+            g.addColorStop(0, '#ffffff');
+            g.addColorStop(0.75, '#e2e8f0');
+            g.addColorStop(1, '#94a3b8');
+            bctx.fillStyle = g;
+            bctx.beginPath();
+            bctx.arc(0, 0, r, 0, Math.PI * 2);
+            bctx.fill();
+            // Fossette (dimples)
+            bctx.fillStyle = 'rgba(100,116,139,0.55)';
+            [[-2.2, -1.5], [1.8, -2.1], [2.4, 1.4], [-1.2, 2.2], [0.2, 0]].forEach(([dx, dy]) => {
+                bctx.beginPath();
+                bctx.arc(dx * (r / 6), dy * (r / 6), Math.max(0.7, r * 0.14), 0, Math.PI * 2);
+                bctx.fill();
+            });
+            bctx.restore();
+        }
+
+        function drawHillLayer(basePct, amp1, freq1, amp2, freq2, phase, colTop, colBot, withStripes) {
+            const g = bctx.createLinearGradient(0, h * (basePct - 0.08), 0, h);
+            g.addColorStop(0, colTop);
+            g.addColorStop(1, colBot);
+
+            bctx.save();
+            bctx.beginPath();
+            bctx.moveTo(0, h);
+            for (let x = 0; x <= w + 12; x += 12) {
+                bctx.lineTo(x, hillY(x, basePct, amp1, freq1, amp2, freq2, phase));
+            }
+            bctx.lineTo(w, h);
+            bctx.closePath();
+            bctx.fillStyle = g;
+            bctx.fill();
+
+            if (withStripes) {
+                bctx.clip();
+                bctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                const stripeW = 34;
+                for (let sx = -h; sx < w + h; sx += stripeW * 2) {
+                    bctx.beginPath();
+                    bctx.moveTo(sx, h * (basePct - 0.15));
+                    bctx.lineTo(sx + stripeW, h * (basePct - 0.15));
+                    bctx.lineTo(sx + stripeW - 70, h);
+                    bctx.lineTo(sx - 70, h);
+                    bctx.closePath();
+                    bctx.fill();
+                }
+            }
+            bctx.restore();
+        }
+
+        function render() {
+            if (!active || !bctx) return;
+            t += 0.016;
+
+            // 1. Cielo crepuscolo Golf Club elegante
+            const sky = bctx.createLinearGradient(0, 0, 0, h * 0.72);
+            sky.addColorStop(0, '#04161a');
+            sky.addColorStop(0.45, '#0b3536');
+            sky.addColorStop(0.82, '#1a5a4a');
+            sky.addColorStop(1, '#d97706');
+            bctx.fillStyle = sky;
+            bctx.fillRect(0, 0, w, h);
+
+            // Bagliore tramonto all'orizzonte
+            const sun = bctx.createRadialGradient(w * 0.78, h * 0.56, 8, w * 0.78, h * 0.56, Math.max(w, h) * 0.36);
+            sun.addColorStop(0, 'rgba(253, 224, 71, 0.35)');
+            sun.addColorStop(0.45, 'rgba(251, 146, 60, 0.16)');
+            sun.addColorStop(1, 'rgba(251, 146, 60, 0)');
+            bctx.fillStyle = sun;
+            bctx.fillRect(0, 0, w, h);
+
+            // Stelline morbide in alto
+            for (const st of stars) {
+                const alpha = 0.25 + 0.45 * (0.5 + 0.5 * Math.sin(t * 2 + st.phase));
+                bctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
+                bctx.beginPath();
+                bctx.arc(st.x * w, st.y * h, st.r, 0, Math.PI * 2);
+                bctx.fill();
+            }
+
+            // Nuvole morbide che scorrono
+            for (const c of clouds) {
+                c.x += c.spd;
+                if (c.x > 1.2) c.x = -0.2;
+                const cx = c.x * w, cy = c.y * h;
+                bctx.save();
+                bctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+                bctx.beginPath();
+                bctx.arc(cx, cy, 26 * c.s, 0, Math.PI * 2);
+                bctx.arc(cx + 24 * c.s, cy - 6 * c.s, 30 * c.s, 0, Math.PI * 2);
+                bctx.arc(cx + 50 * c.s, cy + 2 * c.s, 22 * c.s, 0, Math.PI * 2);
+                bctx.fill();
+                bctx.restore();
+            }
+
+            // 2. Collina Lontana (Livello 1)
+            drawHillLayer(0.62, 26, 0.005, 12, 0.011, 0.4, '#0b3d2e', '#06261d', false);
+            [0.12, 0.28, 0.68, 0.88].forEach(px => {
+                const tx = w * px;
+                const ty = hillY(tx, 0.62, 26, 0.005, 12, 0.011, 0.4);
+                drawTree(tx, ty + 4, 0.62, true);
+            });
+
+            // 3. Collina Media (Livello 2) + Cart Lontano + Bandierina Gialla
+            drawHillLayer(0.73, 28, 0.0055, 10, 0.012, 2.2, '#15603e', '#0b3a25', true);
+            const midFlagX = w * 0.22;
+            const midFlagY = hillY(midFlagX, 0.73, 28, 0.0055, 10, 0.012, 2.2);
+            drawFlag(midFlagX, midFlagY + 4, 0.75, '#facc15');
+            drawTree(w * 0.06, hillY(w * 0.06, 0.73, 28, 0.0055, 10, 0.012, 2.2) + 6, 0.85, false);
+            drawTree(w * 0.92, hillY(w * 0.92, 0.73, 28, 0.0055, 10, 0.012, 2.2) + 6, 0.9, false);
+
+            // Cart livello medio
+            const c0 = carts[1];
+            c0.x += c0.dir * c0.speed;
+            c0.wheelAngle += 0.12;
+            if (c0.x < -0.15) c0.x = 1.15;
+            if (c0.x > 1.15) c0.x = -0.15;
+            const c0x = c0.x * w;
+            const c0y = hillY(c0x, 0.73, 28, 0.0055, 10, 0.012, 2.2);
+            const c0y2 = hillY(c0x + 8, 0.73, 28, 0.0055, 10, 0.012, 2.2);
+            drawGolfCart(c0, c0x, c0y + 4, Math.atan2(c0y2 - c0y, 8), 0.72);
+
+            // 4. Collina Primo Piano (Livello 3) + Bunker + Bandierina Rossa + Cart
+            drawHillLayer(0.84, 24, 0.006, 10, 0.013, 1.2, '#228b4e', '#0d4728', true);
+
+            // Bunker di sabbia
+            const bx = w * 0.32;
+            const by = hillY(bx, 0.84, 24, 0.006, 10, 0.013, 1.2) + 28;
+            bctx.save();
+            bctx.fillStyle = '#e7ca8b';
+            bctx.strokeStyle = '#c59f57';
+            bctx.lineWidth = 2.5;
+            bctx.beginPath();
+            bctx.ellipse(bx, by, 38, 13, -0.08, 0, Math.PI * 2);
+            bctx.fill();
+            bctx.stroke();
+            bctx.restore();
+
+            // Bandierina Rossa sul Green
+            const fgFlagX = w * 0.78;
+            const fgFlagY = hillY(fgFlagX, 0.84, 24, 0.006, 10, 0.013, 1.2) + 10;
+            drawFlag(fgFlagX, fgFlagY, 1.0, '#ef4444');
+
+            // Cart primo piano
+            const c1 = carts[0];
+            c1.x += c1.dir * c1.speed;
+            c1.wheelAngle += 0.16;
+            if (c1.x > 1.18) c1.x = -0.18;
+            if (c1.x < -0.18) c1.x = 1.18;
+            const c1x = c1.x * w;
+            const c1y = hillY(c1x, 0.84, 24, 0.006, 10, 0.013, 1.2);
+            const c1y2 = hillY(c1x + 8, 0.84, 24, 0.006, 10, 0.013, 1.2);
+            drawGolfCart(c1, c1x, c1y + 12, Math.atan2(c1y2 - c1y, 8), 1.02);
+
+            // 5. Palline da golf in arco parabolico con scia tratteggiata
+            nextBallTimer--;
+            if (nextBallTimer <= 0 && flyingBalls.length < 2) {
+                spawnGolfBall();
+                nextBallTimer = 110 + Math.floor(Math.random() * 90);
+            }
+
+            for (let i = flyingBalls.length - 1; i >= 0; i--) {
+                const fb = flyingBalls[i];
+                fb.p += fb.speed;
+                fb.rot += 0.14;
+                const u = 1 - fb.p;
+                const px = u * u * fb.sx + 2 * u * fb.p * fb.cx + fb.p * fb.p * fb.tx;
+                const py = u * u * fb.sy + 2 * u * fb.p * fb.cy + fb.p * fb.p * fb.ty;
+                fb.trail.push({ x: px, y: py });
+                if (fb.trail.length > 26) fb.trail.shift();
+
+                // Scia tratteggiata bianca
+                if (fb.trail.length > 1) {
+                    bctx.save();
+                    bctx.strokeStyle = 'rgba(255,255,255,0.45)';
+                    bctx.lineWidth = 2;
+                    bctx.setLineDash([5, 6]);
+                    bctx.beginPath();
+                    bctx.moveTo(fb.trail[0].x, fb.trail[0].y);
+                    for (let k = 1; k < fb.trail.length; k++) bctx.lineTo(fb.trail[k].x, fb.trail[k].y);
+                    bctx.stroke();
+                    bctx.restore();
+                }
+
+                drawGolfBall(px, py, 6.2, fb.rot);
+
+                if (fb.p >= 1) {
+                    spawnGrassSparks(fb.tx, fb.ty);
+                    flyingBalls.splice(i, 1);
+                }
+            }
+
+            // Spruzzi d'erba / stelline all'atterraggio
+            for (let i = bgSparks.length - 1; i >= 0; i--) {
+                const sp = bgSparks[i];
+                sp.x += sp.vx;
+                sp.y += sp.vy;
+                sp.vy += 0.08;
+                sp.life -= 0.028;
+                if (sp.life <= 0) {
+                    bgSparks.splice(i, 1);
+                    continue;
+                }
+                bctx.save();
+                bctx.globalAlpha = sp.life;
+                bctx.fillStyle = sp.color;
+                bctx.beginPath();
+                bctx.arc(sp.x, sp.y, sp.r, 0, Math.PI * 2);
+                bctx.fill();
+                bctx.restore();
+            }
+
+            rafId = requestAnimationFrame(render);
+        }
+
+        function setActive(isOn) {
+            if (!bgCanvas) return;
+            active = isOn;
+            bgCanvas.classList.toggle('hidden', !isOn);
+            if (isOn) {
+                resize();
+                if (!rafId) rafId = requestAnimationFrame(render);
+            } else if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+            }
+        }
+
+        window.addEventListener('resize', () => { if (active) resize(); });
+        resize();
+        rafId = requestAnimationFrame(render);
+        return { setActive };
+    })();
+
+    // =========================================================================
+    // AUDIO SINTETIZZATO (WEB AUDIO API)
+    // =========================================================================
+    const Sound = {
+        ctx: null,
+        muted: false,
+        lastBoostTime: 0,
+        init() {
+            if (!this.ctx) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) this.ctx = new AudioCtx();
+            }
+            if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+        },
+        playHit(powerRatio) {
+            if (this.muted) return;
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(145 + powerRatio * 140, now);
+            osc.frequency.exponentialRampToValueAtTime(52, now + 0.09);
+            g.gain.setValueAtTime(0.28 * Math.max(0.32, powerRatio), now);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+            osc.connect(g); g.connect(this.ctx.destination);
+            osc.start(now); osc.stop(now + 0.11);
+        },
+        playWall(speed) {
+            if (this.muted || speed < 0.4) return;
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(220 + Math.min(200, speed * 16), now);
+            osc.frequency.exponentialRampToValueAtTime(85, now + 0.055);
+            g.gain.setValueAtTime(Math.min(0.22, speed * 0.025), now);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+            osc.connect(g); g.connect(this.ctx.destination);
+            osc.start(now); osc.stop(now + 0.065);
+        },
+        playBumper() {
+            if (this.muted) return;
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(680, now + 0.07);
+            osc.frequency.exponentialRampToValueAtTime(240, now + 0.18);
+            g.gain.setValueAtTime(0.24, now);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
+            osc.connect(g); g.connect(this.ctx.destination);
+            osc.start(now); osc.stop(now + 0.2);
+        },
+        playBoost() {
+            if (this.muted) return;
+            const tNow = performance.now();
+            if (tNow - this.lastBoostTime < 280) return;
+            this.lastBoostTime = tNow;
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(280, now);
+            osc.frequency.exponentialRampToValueAtTime(620, now + 0.16);
+            g.gain.setValueAtTime(0.07, now);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+            osc.connect(g); g.connect(this.ctx.destination);
+            osc.start(now); osc.stop(now + 0.18);
+        },
+        playSand() {
+            if (this.muted) return;
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const len = Math.floor(this.ctx.sampleRate * 0.09);
+            const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+            const d = buf.getChannelData(0);
+            for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.45;
+            const src = this.ctx.createBufferSource();
+            src.buffer = buf;
+            const filt = this.ctx.createBiquadFilter();
+            filt.type = 'bandpass'; filt.frequency.value = 1250;
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(0.13, now);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+            src.connect(filt); filt.connect(g); g.connect(this.ctx.destination);
+            src.start(now);
+        },
+        playSplash() {
+            if (this.muted) return;
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const g1 = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(360, now);
+            osc.frequency.exponentialRampToValueAtTime(90, now + 0.22);
+            g1.gain.setValueAtTime(0.22, now);
+            g1.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+            osc.connect(g1); g1.connect(this.ctx.destination);
+            osc.start(now); osc.stop(now + 0.25);
+        },
+        playHole(isGreat) {
+            if (this.muted) return;
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const notes = isGreat ? [523.25, 659.25, 783.99, 1046.5, 1318.5] : [523.25, 659.25, 783.99];
+            notes.forEach((freq, i) => {
+                const t = now + i * 0.08;
+                const osc = this.ctx.createOscillator();
+                const g = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, t);
+                g.gain.setValueAtTime(0.16, t);
+                g.gain.exponentialRampToValueAtTime(0.001, t + 0.26);
+                osc.connect(g); g.connect(this.ctx.destination);
+                osc.start(t); osc.stop(t + 0.28);
+            });
+        }
+    };
+
+    // =========================================================================
+    // 15 BUCHE POLIGONALI SAGOMATE (360 x 600)
+    // =========================================================================
+    const HOLES = [
+        {
+            id: 1, name: "Prato Verde", par: 2, bg: "grass",
+            start: { x: 145, y: 515 }, hole: { x: 215, y: 100 },
+            poly: [
+                {x:95,y:555}, {x:205,y:555}, {x:205,y:370}, {x:275,y:300},
+                {x:275,y:105}, {x:225,y:55}, {x:155,y:55}, {x:155,y:265},
+                {x:95,y:325}
+            ],
+            innerWalls: [], sand: [], water: [], boosts: [], slopes: [], bumpers: [], movers: [], windmills: []
+        },
+        {
+            id: 2, name: "Doppio Rimbalzo", par: 3, bg: "grass",
+            start: { x: 105, y: 510 }, hole: { x: 270, y: 130 },
+            poly: [
+                {x:55,y:555}, {x:160,y:555}, {x:160,y:210}, {x:315,y:210},
+                {x:315,y:105}, {x:265,y:55}, {x:115,y:55}, {x:55,y:115}
+            ],
+            innerWalls: [],
+            sand: [{ x: 205, y: 155, rx: 32, ry: 22 }],
+            water: [], boosts: [], slopes: [], bumpers: [], movers: [], windmills: []
+        },
+        {
+            id: 3, name: "Il Bivio", par: 3, bg: "grass",
+            start: { x: 180, y: 525 }, hole: { x: 180, y: 95 },
+            poly: [
+                {x:120,y:560}, {x:240,y:560}, {x:320,y:440}, {x:320,y:170},
+                {x:240,y:55}, {x:120,y:55}, {x:50,y:160}, {x:50,y:440}
+            ],
+            innerWalls: [
+                {x1:125,y1:400,x2:195,y2:400}, {x1:195,y1:400,x2:195,y2:200},
+                {x1:195,y1:200,x2:125,y2:200}, {x1:125,y1:200,x2:125,y2:400}
+            ],
+            sand: [{ x: 265, y: 300, rx: 30, ry: 52 }],
+            water: [],
+            boosts: [{ x: 64, y: 245, w: 48, h: 110, dx: 0, dy: -1, force: 0.25 }],
+            slopes: [], bumpers: [], movers: [], windmills: []
+        },
+        {
+            id: 4, name: "Dune di Sabbia", par: 3, bg: "grass",
+            start: { x: 100, y: 525 }, hole: { x: 260, y: 95 },
+            poly: [
+                {x:45,y:560}, {x:195,y:560}, {x:195,y:425}, {x:315,y:370},
+                {x:315,y:255}, {x:185,y:205}, {x:315,y:155}, {x:315,y:55},
+                {x:195,y:55}, {x:195,y:135}, {x:45,y:190}, {x:45,y:310},
+                {x:175,y:355}, {x:45,y:410}
+            ],
+            innerWalls: [],
+            sand: [
+                { x: 245, y: 315, rx: 42, ry: 28 },
+                { x: 115, y: 250, rx: 42, ry: 28 },
+                { x: 255, y: 150, rx: 32, ry: 18 }
+            ],
+            water: [], boosts: [], slopes: [], bumpers: [], movers: [], windmills: []
+        },
+        {
+            id: 5, name: "Il Ponte", par: 3, bg: "water",
+            start: { x: 180, y: 515 }, hole: { x: 180, y: 100 },
+            poly: [
+                {x:65,y:560}, {x:295,y:560}, {x:295,y:390}, {x:220,y:390},
+                {x:220,y:215}, {x:295,y:215}, {x:295,y:95}, {x:245,y:45},
+                {x:115,y:45}, {x:65,y:95}, {x:65,y:215}, {x:140,y:215},
+                {x:140,y:390}, {x:65,y:390}
+            ],
+            innerWalls: [],
+            sand: [{ x: 115, y: 155, rx: 28, ry: 22 }, { x: 245, y: 155, rx: 28, ry: 22 }],
+            water: [{ x: 144, y: 235, w: 12, h: 135 }, { x: 204, y: 235, w: 12, h: 135 }],
+            boosts: [], slopes: [], bumpers: [], movers: [], windmills: []
+        },
+        {
+            id: 6, name: "Flipper", par: 3, bg: "grass",
+            start: { x: 180, y: 525 }, hole: { x: 180, y: 90 },
+            poly: [
+                {x:120,y:560}, {x:240,y:560}, {x:330,y:310}, {x:240,y:50},
+                {x:120,y:50}, {x:30,y:310}
+            ],
+            innerWalls: [], sand: [], water: [], boosts: [], slopes: [],
+            bumpers: [
+                { x: 180, y: 390, r: 22 }, { x: 110, y: 310, r: 22 },
+                { x: 250, y: 310, r: 22 }, { x: 180, y: 230, r: 24 },
+                { x: 125, y: 155, r: 17 }, { x: 235, y: 155, r: 17 }
+            ],
+            movers: [], windmills: []
+        },
+        {
+            id: 7, name: "La Porta Mobile", par: 3, bg: "grass",
+            start: { x: 180, y: 525 }, hole: { x: 180, y: 95 },
+            poly: [
+                {x:75,y:560}, {x:285,y:560}, {x:285,y:345}, {x:240,y:310},
+                {x:310,y:240}, {x:310,y:95}, {x:255,y:45}, {x:105,y:45},
+                {x:50,y:95}, {x:50,y:240}, {x:120,y:310}, {x:75,y:345}
+            ],
+            innerWalls: [],
+            sand: [{ x: 115, y: 445, rx: 32, ry: 24 }, { x: 245, y: 445, rx: 32, ry: 24 }],
+            water: [], boosts: [], slopes: [],
+            bumpers: [{ x: 180, y: 165, r: 16 }],
+            movers: [{ x: 135, y: 265, w: 90, h: 18, axis: 'x', min: 85, max: 185, speed: 1.9, dir: 1 }],
+            windmills: []
+        },
+        {
+            id: 8, name: "Il Mulino", par: 4, bg: "grass",
+            start: { x: 180, y: 530 }, hole: { x: 180, y: 85 },
+            poly: [
+                {x:100,y:565}, {x:260,y:565}, {x:260,y:420}, {x:320,y:360},
+                {x:320,y:240}, {x:260,y:180}, {x:260,y:90}, {x:215,y:45},
+                {x:145,y:45}, {x:100,y:90}, {x:100,y:180}, {x:40,y:240},
+                {x:40,y:360}, {x:100,y:420}
+            ],
+            innerWalls: [],
+            sand: [{ x: 180, y: 145, rx: 38, ry: 18 }],
+            water: [], boosts: [], slopes: [], bumpers: [], movers: [],
+            windmills: [{ x: 180, y: 300, len: 74, thick: 12, blades: 4, angle: 0, omega: 0.024 }]
+        },
+        {
+            id: 9, name: "Discesa Libera", par: 3, bg: "water",
+            start: { x: 110, y: 525 }, hole: { x: 255, y: 95 },
+            poly: [{x:45,y:560}, {x:315,y:560}, {x:315,y:50}, {x:175,y:50}, {x:45,y:180}],
+            innerWalls: [],
+            sand: [{ x: 115, y: 205, rx: 32, ry: 22 }],
+            water: [{ x: 235, y: 225, w: 76, h: 175 }],
+            boosts: [],
+            slopes: [{ x: 55, y: 255, w: 170, h: 135, gx: 0.055, gy: 0.01 }],
+            bumpers: [{ x: 185, y: 145, r: 16 }],
+            movers: [], windmills: []
+        },
+        {
+            id: 10, name: "Serpentina", par: 4, bg: "grass",
+            start: { x: 90, y: 530 }, hole: { x: 270, y: 90 },
+            poly: [
+                {x:40,y:565}, {x:320,y:565}, {x:320,y:340}, {x:160,y:340},
+                {x:160,y:255}, {x:320,y:255}, {x:320,y:45}, {x:150,y:45},
+                {x:40,y:155}, {x:40,y:435}, {x:200,y:435}, {x:200,y:490},
+                {x:40,y:490}
+            ],
+            innerWalls: [
+                { x1: 275, y1: 565, x2: 320, y2: 520 },
+                { x1: 40, y1: 390, x2: 85, y2: 435 },
+                { x1: 275, y1: 45, x2: 320, y2: 90 }
+            ],
+            sand: [{ x: 245, y: 390, rx: 34, ry: 22 }, { x: 100, y: 210, rx: 32, ry: 26 }],
+            water: [], boosts: [], slopes: [], bumpers: [], movers: [], windmills: []
+        },
+        {
+            id: 11, name: "L'Arcipelago", par: 4, bg: "water",
+            start: { x: 110, y: 520 }, hole: { x: 250, y: 95 },
+            poly: [
+                {x:45,y:560}, {x:220,y:560}, {x:220,y:450}, {x:185,y:450},
+                {x:185,y:365}, {x:315,y:365}, {x:315,y:250}, {x:275,y:250},
+                {x:275,y:170}, {x:315,y:170}, {x:315,y:50}, {x:155,y:50},
+                {x:155,y:170}, {x:205,y:170}, {x:205,y:250}, {x:85,y:250},
+                {x:85,y:365}, {x:120,y:365}, {x:120,y:450}, {x:45,y:450}
+            ],
+            innerWalls: [],
+            sand: [{ x: 135, y: 305, rx: 28, ry: 24 }],
+            water: [],
+            boosts: [
+                { x: 132, y: 375, w: 42, h: 65, dx: 0, dy: -1, force: 0.24 },
+                { x: 218, y: 180, w: 44, h: 60, dx: 0, dy: -1, force: 0.24 }
+            ],
+            slopes: [], bumpers: [{ x: 260, y: 305, r: 16 }], movers: [], windmills: []
+        },
+        {
+            id: 12, name: "Corridoio Turbo", par: 4, bg: "grass",
+            start: { x: 180, y: 530 }, hole: { x: 180, y: 85 },
+            poly: [
+                {x:75,y:565}, {x:285,y:565}, {x:320,y:460}, {x:320,y:140},
+                {x:255,y:45}, {x:105,y:45}, {x:40,y:140}, {x:40,y:460}
+            ],
+            innerWalls: [],
+            sand: [{ x: 85, y: 290, rx: 28, ry: 45 }, { x: 275, y: 290, rx: 28, ry: 45 }],
+            water: [],
+            boosts: [
+                { x: 145, y: 405, w: 70, h: 80, dx: 0, dy: -1, force: 0.28 },
+                { x: 145, y: 175, w: 70, h: 65, dx: 0, dy: -1, force: 0.24 }
+            ],
+            slopes: [],
+            bumpers: [{ x: 125, y: 345, r: 16 }, { x: 235, y: 345, r: 16 }],
+            movers: [
+                { x: 135, y: 270, w: 85, h: 16, axis: 'x', min: 95, max: 180, speed: 2.2, dir: 1 },
+                { x: 145, y: 140, w: 70, h: 16, axis: 'x', min: 90, max: 200, speed: 1.8, dir: -1 }
+            ],
+            windmills: []
+        },
+        {
+            id: 13, name: "Il Labirinto", par: 4, bg: "grass",
+            start: { x: 90, y: 525 }, hole: { x: 275, y: 95 },
+            poly: [{x:40,y:565}, {x:320,y:565}, {x:320,y:45}, {x:40,y:45}],
+            innerWalls: [
+                { x1: 40, y1: 420, x2: 220, y2: 420 },
+                { x1: 165, y1: 420, x2: 165, y2: 290 },
+                { x1: 165, y1: 225, x2: 165, y2: 135 },
+                { x1: 165, y1: 290, x2: 265, y2: 290 },
+                { x1: 100, y1: 165, x2: 320, y2: 165 }
+            ],
+            sand: [{ x: 265, y: 490, rx: 32, ry: 28 }],
+            water: [],
+            boosts: [{ x: 56, y: 240, w: 46, h: 85, dx: 0, dy: -1, force: 0.22 }],
+            slopes: [],
+            bumpers: [{ x: 265, y: 225, r: 16 }],
+            movers: [], windmills: []
+        },
+        {
+            id: 14, name: "Vortice", par: 5, bg: "grass",
+            start: { x: 180, y: 535 }, hole: { x: 180, y: 80 },
+            poly: [
+                {x:100,y:570}, {x:260,y:570}, {x:330,y:470}, {x:330,y:130},
+                {x:255,y:40}, {x:105,y:40}, {x:30,y:130}, {x:30,y:470}
+            ],
+            innerWalls: [],
+            sand: [{ x: 80, y: 310, rx: 30, ry: 55 }, { x: 280, y: 310, rx: 30, ry: 55 }],
+            water: [], boosts: [],
+            slopes: [{ x: 115, y: 265, w: 130, h: 85, gx: 0.045, gy: 0 }],
+            bumpers: [{ x: 180, y: 310, r: 18 }],
+            movers: [],
+            windmills: [
+                { x: 180, y: 415, len: 64, thick: 12, blades: 2, angle: 0, omega: 0.028 },
+                { x: 180, y: 195, len: 64, thick: 12, blades: 2, angle: 1.57, omega: -0.028 }
+            ]
+        },
+        {
+            id: 15, name: "Gran Finale", par: 5, bg: "water",
+            start: { x: 180, y: 540 }, hole: { x: 180, y: 78 },
+            poly: [
+                {x:85,y:570}, {x:275,y:570}, {x:275,y:445}, {x:225,y:445},
+                {x:225,y:370}, {x:320,y:370}, {x:320,y:125}, {x:245,y:40},
+                {x:115,y:40}, {x:40,y:125}, {x:40,y:370}, {x:135,y:370},
+                {x:135,y:445}, {x:85,y:445}
+            ],
+            innerWalls: [],
+            sand: [{ x: 90, y: 150, rx: 28, ry: 22 }, { x: 270, y: 150, rx: 28, ry: 22 }],
+            water: [{ x: 46, y: 260, w: 66, h: 90 }, { x: 248, y: 260, w: 66, h: 90 }],
+            boosts: [{ x: 150, y: 382, w: 60, h: 55, dx: 0, dy: -1, force: 0.25 }],
+            slopes: [],
+            bumpers: [{ x: 140, y: 285, r: 15 }, { x: 220, y: 285, r: 15 }],
+            movers: [{ x: 140, y: 230, w: 80, h: 15, axis: 'x', min: 115, max: 165, speed: 2.0, dir: 1 }],
+            windmills: [{ x: 180, y: 150, len: 56, thick: 11, blades: 4, angle: 0, omega: 0.025 }]
+        }
+    ];
+
+    // =========================================================================
+    // STATO MULTIPLAYER & PARTITA
+    // =========================================================================
+    const setup = {
+        maxPlayers: 4,
+        holesCount: 5,
+        orderMode: 'random' // 'random' | 'sequential'
+    };
+
+    const mp = {
+        peer: null,
+        isHost: false,
+        myId: null,
+        roomCode: null,
+        roomData: null,
+        connections: {},      // host: peerId -> DataConnection
+        hostConn: null,       // client: DataConnection verso host
+        playersMap: {},       // uid -> playerState
+        remoteRenderPos: {},  // uid -> { x, y } per lerp fluido
+        joinTimeout: null,
+        lastSyncTime: 0,
+        lastRoundIdSeen: -1,
+        lastHoleIdxSeen: -1,
+        autoAdvanceTimer: null,
+        advancingLock: false
+    };
+
+    let myScores = [];
+    let strokes = 0;
+    let inGame = false;
+    let hasPlayedShot = false;
+
+    const ball = {
+        x: 180, y: 500, vx: 0, vy: 0,
+        lastSafeX: 180, lastSafeY: 500,
+        inHole: false, holeAnim: 0,
+        inWater: false, waterTimer: 0,
+        onSand: false
+    };
+
+    const drag = {
+        active: false, pointerId: null,
+        startX: 0, startY: 0, currX: 0, currY: 0
+    };
+
+    let activeWalls = [];
+    let moversState = [];
+    let windmillsState = [];
+    let bumperPulses = [];
+    let decorItems = [];
+    let particles = [];
+    let animTime = 0;
+    let flagLift = 0;
+    let canvasScale = 1;
+    let toastTimeout = null;
+
+    // =========================================================================
+    // UTILITÀ
+    // =========================================================================
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, s => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[s]));
+    }
+
+    function showBanner(elId, msg, isError = true) {
+        const el = document.getElementById(elId);
+        el.textContent = msg;
+        el.className = isError
+            ? 'px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-center border bg-rose-500/20 border-rose-400/40 text-rose-200'
+            : 'px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-center border bg-emerald-500/20 border-emerald-400/40 text-emerald-200';
+        el.classList.remove('hidden');
+        setTimeout(() => el.classList.add('hidden'), 3200);
+    }
+
+    function showToast(text, duration = 1800) {
+        toastMsg.textContent = text;
+        toastMsg.style.opacity = '1';
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => { toastMsg.style.opacity = '0'; }, duration);
+    }
+
+    function generateRoomCode() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let code = '';
+        for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+        return code;
+    }
+
+    function getMyName() {
+        const val = document.getElementById('input-player-name').value.trim();
+        return val || `Golfista${Math.floor(10 + Math.random() * 89)}`;
+    }
+
+    function buildHoleOrder(count, mode) {
+        const arr = HOLES.map((_, i) => i);
+        if (mode === 'random') {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+        }
+        return arr.slice(0, count);
+    }
+
+    function isHost() {
+        return Boolean(mp.isHost && mp.myId && mp.roomData && mp.roomData.hostId === mp.myId);
+    }
+
+    function getCurrentHole() {
+        const order = mp.roomData?.holeOrder || [0];
+        const idx = mp.roomData?.currentHoleIdx || 0;
+        return HOLES[order[idx] ?? 0];
+    }
+
+    // =========================================================================
+    // LOGICA MULTIPLAYER PEERJS (WEBRTC P2P)
+    // =========================================================================
+    function broadcastToClients(msg, excludePeerId = null) {
+        if (!mp.isHost) return;
+        for (const [pid, conn] of Object.entries(mp.connections)) {
+            if (pid === excludePeerId) continue;
+            if (conn && conn.open) {
+                try { conn.send(msg); } catch (_) {}
+            }
+        }
+    }
+
+    function broadcastFullState() {
+        if (!mp.isHost || !mp.roomData) return;
+        broadcastToClients({
+            type: 'ROOM_STATE',
+            roomData: mp.roomData,
+            playersMap: mp.playersMap
+        });
+    }
+
+    function broadcastPlayers(excludePeerId = null) {
+        if (!mp.isHost) return;
+        broadcastToClients({
+            type: 'PLAYERS_UPDATE',
+            playersMap: mp.playersMap
+        }, excludePeerId);
+    }
+
+    function createRoom() {
+        if (typeof window.Peer === 'undefined') {
+            showBanner('home-alert', 'PeerJS non caricato. Controlla la connessione internet.');
+            return;
+        }
+        Sound.init();
+        cleanupPeer();
+
+        const code = generateRoomCode();
+        const myName = getMyName();
+        setConnStatus('connecting', 'Creazione...');
+
+        try {
+            const peer = new Peer(PEER_PREFIX + code, PEER_CONFIG);
+            mp.peer = peer;
+            mp.isHost = true;
+            mp.roomCode = code;
+
+            peer.on('open', (id) => {
+                mp.myId = id;
+                mp.lastRoundIdSeen = -1;
+                mp.lastHoleIdxSeen = -1;
+                mp.remoteRenderPos = {};
+
+                mp.roomData = {
+                    code,
+                    hostId: id,
+                    status: 'waiting',
+                    maxPlayers: setup.maxPlayers,
+                    holesCount: setup.holesCount,
+                    orderMode: setup.orderMode,
+                    holeOrder: [],
+                    currentHoleIdx: 0,
+                    roundId: 0,
+                    createdAt: Date.now()
+                };
+
+                mp.playersMap = {
+                    [id]: {
+                        uid: id,
+                        name: myName,
+                        color: PLAYER_COLORS[0],
+                        isHost: true,
+                        x: 180, y: 500,
+                        strokes: 0,
+                        finishedHole: false,
+                        holeIdxSynced: -1,
+                        scores: [],
+                        totalScore: 0,
+                        joinedAt: Date.now()
+                    }
+                };
+
+                setConnStatus('ready', 'Host Attivo');
+                screenHome.classList.add('hidden');
+                screenLobby.classList.remove('hidden');
+                renderLobbyUI();
+            });
+
+            peer.on('connection', (conn) => {
+                conn.on('data', (msg) => handleHostData(conn, msg));
+                conn.on('close', () => {
+                    if (mp.connections[conn.peer]) {
+                        delete mp.connections[conn.peer];
+                    }
+                    if (mp.playersMap[conn.peer]) {
+                        delete mp.playersMap[conn.peer];
+                        delete mp.remoteRenderPos[conn.peer];
+                        broadcastPlayers();
+                        onPlayersUpdated();
+                    }
+                });
+                conn.on('error', () => {
+                    if (mp.connections[conn.peer]) delete mp.connections[conn.peer];
+                    if (mp.playersMap[conn.peer]) {
+                        delete mp.playersMap[conn.peer];
+                        delete mp.remoteRenderPos[conn.peer];
+                        broadcastPlayers();
+                        onPlayersUpdated();
+                    }
+                });
+            });
+
+            peer.on('error', (err) => {
+                console.error('Errore PeerJS Host:', err);
+                if (err.type === 'unavailable-id') {
+                    leaveRoomLocal();
+                    showBanner('home-alert', 'Codice già in uso, riprova a creare la stanza.');
+                } else {
+                    setConnStatus('error', 'Errore P2P');
+                    showBanner(inGame ? 'lobby-alert' : 'home-alert', 'Errore di rete P2P. Riprova.');
+                }
+            });
+        } catch (err) {
+            console.error(err);
+            setConnStatus('ready', 'Pronto P2P');
+            showBanner('home-alert', 'Impossibile creare la stanza. Riprova.');
+        }
+    }
+
+    function handleHostData(conn, msg) {
+        if (!mp.isHost || !mp.roomData || !msg || typeof msg !== 'object') return;
+
+        if (msg.type === 'JOIN') {
+            const existing = Object.values(mp.playersMap);
+            if (mp.roomData.status !== 'waiting') {
+                try { conn.send({ type: 'JOIN_ERROR', message: 'La partita in questa stanza è già avviata.' }); } catch (_) {}
+                setTimeout(() => { try { conn.close(); } catch (_) {} }, 200);
+                return;
+            }
+            if (existing.length >= mp.roomData.maxPlayers) {
+                try { conn.send({ type: 'JOIN_ERROR', message: 'La stanza è piena!' }); } catch (_) {}
+                setTimeout(() => { try { conn.close(); } catch (_) {} }, 200);
+                return;
+            }
+
+            const usedColors = existing.map(p => p.color);
+            const color = PLAYER_COLORS.find(c => !usedColors.includes(c)) || PLAYER_COLORS[existing.length % PLAYER_COLORS.length];
+
+            mp.connections[conn.peer] = conn;
+            mp.playersMap[conn.peer] = {
+                uid: conn.peer,
+                name: String(msg.name || 'Ospite').slice(0, 14),
+                color,
+                isHost: false,
+                x: 180, y: 500,
+                strokes: 0,
+                finishedHole: false,
+                holeIdxSynced: -1,
+                scores: [],
+                totalScore: 0,
+                joinedAt: Date.now()
+            };
+            mp.remoteRenderPos[conn.peer] = { x: 180, y: 500 };
+
+            broadcastFullState();
+            onPlayersUpdated();
+            return;
+        }
+
+        if (msg.type === 'PLAYER_UPDATE' && mp.playersMap[conn.peer]) {
+            const cur = mp.playersMap[conn.peer];
+            mp.playersMap[conn.peer] = {
+                ...cur,
+                ...msg.data,
+                uid: conn.peer,
+                color: cur.color,
+                name: cur.name,
+                isHost: false
+            };
+            broadcastPlayers(conn.peer);
+            onPlayersUpdated();
+        }
+    }
+
+    function joinRoom() {
+        if (typeof window.Peer === 'undefined') {
+            showBanner('home-alert', 'PeerJS non caricato. Controlla la connessione internet.');
+            return;
+        }
+        const code = document.getElementById('input-join-code').value.trim().toUpperCase();
+        if (code.length < 4) {
+            showBanner('home-alert', 'Inserisci un codice stanza valido (5 caratteri).');
+            return;
+        }
+        Sound.init();
+        cleanupPeer();
+
+        const myName = getMyName();
+        setConnStatus('connecting', 'Connessione...');
+
+        try {
+            const peer = new Peer(undefined, PEER_CONFIG);
+            mp.peer = peer;
+            mp.isHost = false;
+            mp.roomCode = code;
+            let joinedOk = false;
+
+            mp.joinTimeout = setTimeout(() => {
+                if (!joinedOk) {
+                    leaveRoomLocal();
+                    showBanner('home-alert', 'Timeout di connessione (8s). Controlla il codice o la rete.');
+                }
+            }, 8000);
+
+            peer.on('open', (id) => {
+                mp.myId = id;
+                const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
+                mp.hostConn = conn;
+
+                conn.on('open', () => {
+                    conn.send({ type: 'JOIN', name: myName });
+                });
+
+                conn.on('data', (msg) => {
+                    if (msg && msg.type === 'ROOM_STATE' && !joinedOk) {
+                        joinedOk = true;
+                        clearTimeout(mp.joinTimeout);
+                        mp.joinTimeout = null;
+                        setConnStatus('ready', 'Connesso P2P');
+                    }
+                    handleClientData(msg);
+                });
+
+                conn.on('close', () => {
+                    if (mp.roomCode) {
+                        leaveRoomLocal();
+                        showBanner('home-alert', "L'Host ha chiuso la stanza o la connessione è caduta.");
+                    }
+                });
+
+                conn.on('error', (err) => {
+                    console.error('Errore connessione client:', err);
+                    leaveRoomLocal();
+                    showBanner('home-alert', 'Errore di connessione alla stanza.');
+                });
+            });
+
+            peer.on('error', (err) => {
+                console.error('Errore PeerJS Client:', err);
+                clearTimeout(mp.joinTimeout);
+                mp.joinTimeout = null;
+                leaveRoomLocal();
+                if (err.type === 'peer-unavailable') {
+                    showBanner('home-alert', 'Stanza inesistente. Controlla il codice.');
+                } else {
+                    showBanner('home-alert', 'Impossibile connettersi alla stanza. Riprova.');
+                }
+            });
+        } catch (err) {
+            console.error(err);
+            leaveRoomLocal();
+            showBanner('home-alert', 'Errore di connessione P2P.');
+        }
+    }
+
+    function handleClientData(msg) {
+        if (!msg || typeof msg !== 'object') return;
+
+        if (msg.type === 'JOIN_ERROR') {
+            clearTimeout(mp.joinTimeout);
+            mp.joinTimeout = null;
+            leaveRoomLocal();
+            showBanner('home-alert', msg.message || 'Impossibile entrare nella stanza.');
+            return;
+        }
+
+        if (msg.type === 'HOST_CLOSED') {
+            leaveRoomLocal();
+            showBanner('home-alert', "L'Host ha chiuso la stanza.");
+            return;
+        }
+
+        if (msg.type === 'ROOM_STATE') {
+            mp.roomData = msg.roomData;
+            if (msg.playersMap) {
+                mergePlayersMap(msg.playersMap);
+            }
+            onRoomStateChanged();
+            onPlayersUpdated();
+            return;
+        }
+
+        if (msg.type === 'PLAYERS_UPDATE' && msg.playersMap) {
+            mergePlayersMap(msg.playersMap);
+            onPlayersUpdated();
+        }
+    }
+
+    function mergePlayersMap(incomingMap) {
+        const nextMap = {};
+        for (const [uid, p] of Object.entries(incomingMap)) {
+            nextMap[uid] = p;
+            if (mp.myId && uid !== mp.myId && !mp.remoteRenderPos[uid]) {
+                mp.remoteRenderPos[uid] = { x: p.x, y: p.y };
+            }
+        }
+        mp.playersMap = nextMap;
+    }
+
+    function onRoomStateChanged() {
+        const r = mp.roomData;
+        if (!r) return;
+
+        if (r.status === 'waiting') {
+            inGame = false;
+            MenuBg.setActive(true);
+            modalResults.classList.add('hidden');
+            gameHud.classList.add('hidden');
+            canvasContainer.classList.add('hidden');
+            screenLobby.classList.remove('hidden');
+            renderLobbyUI();
+        } else if (r.status === 'playing') {
+            modalResults.classList.add('hidden');
+            screenLobby.classList.add('hidden');
+            screenHome.classList.add('hidden');
+            gameHud.classList.remove('hidden');
+            canvasContainer.classList.remove('hidden');
+            hudRoomBadge.textContent = r.code;
+
+            if (!inGame) {
+                inGame = true;
+                MenuBg.setActive(false);
+                resizeCanvas();
+            }
+
+            // Nuova partita (rematch) -> azzera punteggi personali
+            if (r.roundId !== mp.lastRoundIdSeen) {
+                mp.lastRoundIdSeen = r.roundId;
+                myScores = [];
+                mp.lastHoleIdxSeen = -1;
+            }
+
+            // Cambio buca sincronizzato
+            if (r.currentHoleIdx !== mp.lastHoleIdxSeen) {
+                mp.lastHoleIdxSeen = r.currentHoleIdx;
+                clearTimeout(mp.autoAdvanceTimer);
+                mp.autoAdvanceTimer = null;
+                document.getElementById('mp-wait-banner').classList.add('hidden');
+                loadCurrentHole();
+            }
+
+            updateHostForceButtons();
+            renderLiveLeaderboard();
+        } else if (r.status === 'finished') {
+            inGame = false;
+            clearTimeout(mp.autoAdvanceTimer);
+            document.getElementById('mp-wait-banner').classList.add('hidden');
+            document.getElementById('mp-liveboard-panel').classList.add('hidden');
+            renderResultsModal();
+        }
+    }
+
+    function onPlayersUpdated() {
+        const r = mp.roomData;
+        if (!r) return;
+
+        if (r.status === 'waiting') {
+            renderLobbyUI();
+        } else if (r.status === 'playing') {
+            renderLiveLeaderboard();
+            checkAllFinishedForHost();
+        } else if (r.status === 'finished') {
+            renderResultsModal();
+        }
+    }
+
+    function renderLobbyUI() {
+        const r = mp.roomData;
+        if (!r) return;
+        const players = Object.values(mp.playersMap).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+
+        document.getElementById('lobby-room-code').textContent = r.code;
+        const ordTxt = r.orderMode === 'sequential' ? 'Sequenziale' : 'Casuale';
+        document.getElementById('lobby-settings-summary').textContent =
+            `Giocatori: ${players.length}/${r.maxPlayers} • Buche: ${r.holesCount} • ${ordTxt}`;
+
+        const list = document.getElementById('lobby-player-list');
+        list.innerHTML = '';
+        players.forEach(p => {
+            const isMe = mp.myId && p.uid === mp.myId;
+            const pIsHost = p.uid === r.hostId;
+            const li = document.createElement('li');
+            li.className = 'flex items-center justify-between px-3 py-2 rounded-2xl bg-white/5 border border-white/10';
+            li.innerHTML = `
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="w-3.5 h-3.5 rounded-full shrink-0 border border-white/40" style="background:${p.color}"></span>
+                    <span class="text-sm font-semibold text-white truncate">${escapeHtml(p.name)} ${isMe ? '(Tu)' : ''}</span>
+                </div>
+                ${pIsHost ? '<span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">HOST</span>' : ''}
+            `;
+            list.appendChild(li);
+        });
+
+        const hostNow = isHost();
+        document.getElementById('lobby-host-box').classList.toggle('hidden', !hostNow);
+        document.getElementById('lobby-guest-box').classList.toggle('hidden', hostNow);
+    }
+
+    function hostStartOrRematch() {
+        if (!isHost() || !mp.roomCode || !mp.roomData) return;
+        Sound.init();
+        const r = mp.roomData;
+        const holeOrder = buildHoleOrder(r.holesCount || 5, r.orderMode || 'random');
+        const firstHole = HOLES[holeOrder[0] ?? 0];
+
+        r.status = 'playing';
+        r.holeOrder = holeOrder;
+        r.currentHoleIdx = 0;
+        r.roundId = (r.roundId || 0) + 1;
+
+        for (const p of Object.values(mp.playersMap)) {
+            p.x = firstHole.start.x;
+            p.y = firstHole.start.y;
+            p.strokes = 0;
+            p.finishedHole = false;
+            p.holeIdxSynced = 0;
+            p.scores = [];
+            p.totalScore = 0;
+        }
+
+        broadcastFullState();
+        onRoomStateChanged();
+    }
+
+    function updateHostForceButtons() {
+        const hostNow = isHost();
+        document.getElementById('btn-host-force-panel').classList.toggle('hidden', !hostNow);
+        document.getElementById('btn-host-force-banner').classList.toggle('hidden', !hostNow);
+    }
+
+    function checkAllFinishedForHost() {
+        const r = mp.roomData;
+        if (!r || r.status !== 'playing') return;
+        const players = Object.values(mp.playersMap);
+        const doneCount = players.filter(p => p.finishedHole && p.holeIdxSynced === r.currentHoleIdx).length;
+
+        if (ball.inHole) {
+            document.getElementById('mp-wait-sub').textContent =
+                `Imbucati: ${doneCount}/${players.length} giocatori...`;
+        }
+
+        if (isHost() && players.length > 0 && doneCount === players.length) {
+            if (!mp.autoAdvanceTimer && !mp.advancingLock) {
+                mp.autoAdvanceTimer = setTimeout(() => {
+                    mp.autoAdvanceTimer = null;
+                    hostAdvanceHole();
+                }, 1800);
+            }
+        }
+    }
+
+    function hostAdvanceHole() {
+        if (!isHost() || !mp.roomCode || !mp.roomData || mp.advancingLock) return;
+        mp.advancingLock = true;
+        clearTimeout(mp.autoAdvanceTimer);
+        mp.autoAdvanceTimer = null;
+
+        const r = mp.roomData;
+        const nextIdx = (r.currentHoleIdx || 0) + 1;
+        if (nextIdx >= (r.holeOrder?.length || 1)) {
+            r.status = 'finished';
+        } else {
+            r.currentHoleIdx = nextIdx;
+            const nextHole = HOLES[r.holeOrder[nextIdx] ?? 0];
+            for (const p of Object.values(mp.playersMap)) {
+                p.x = nextHole.start.x;
+                p.y = nextHole.start.y;
+                p.strokes = 0;
+                p.finishedHole = false;
+                p.holeIdxSynced = nextIdx;
+            }
+        }
+
+        broadcastFullState();
+        onRoomStateChanged();
+
+        setTimeout(() => { mp.advancingLock = false; }, 700);
+    }
+
+    // Invio stato giocatore con throttle ~60ms via PeerJS
+    function syncMyPlayerState(force = false, extra = {}) {
+        if (!mp.roomCode || !mp.myId || !mp.roomData) return;
+        const now = performance.now();
+        if (!force && now - mp.lastSyncTime < 60) return;
+        mp.lastSyncTime = now;
+
+        const payload = {
+            x: Math.round(ball.x),
+            y: Math.round(ball.y),
+            strokes,
+            holeIdxSynced: mp.roomData.currentHoleIdx,
+            ...extra
+        };
+
+        if (mp.isHost) {
+            if (mp.playersMap[mp.myId]) {
+                mp.playersMap[mp.myId] = { ...mp.playersMap[mp.myId], ...payload };
+                broadcastPlayers();
+                onPlayersUpdated();
+            }
+        } else if (mp.hostConn && mp.hostConn.open) {
+            try {
+                mp.hostConn.send({ type: 'PLAYER_UPDATE', data: payload });
+            } catch (_) {}
+        }
+    }
+
+    function renderLiveLeaderboard() {
+        const r = mp.roomData;
+        if (!r) return;
+        const players = Object.values(mp.playersMap).sort((a, b) => {
+            const ta = (a.totalScore || 0) + (a.finishedHole && a.holeIdxSynced === r.currentHoleIdx ? 0 : (a.strokes || 0));
+            const tb = (b.totalScore || 0) + (b.finishedHole && b.holeIdxSynced === r.currentHoleIdx ? 0 : (b.strokes || 0));
+            return ta - tb;
+        });
+
+        const doneCount = players.filter(p => p.finishedHole && p.holeIdxSynced === r.currentHoleIdx).length;
+        document.getElementById('mp-live-done-count').textContent = `${doneCount}/${players.length} imbucati`;
+
+        const myRank = players.findIndex(p => mp.myId && p.uid === mp.myId) + 1;
+        document.getElementById('hud-live-rank').textContent = `#${myRank || 1}`;
+
+        const rows = document.getElementById('mp-liveboard-rows');
+        rows.innerHTML = '';
+        players.forEach((p, idx) => {
+            const done = p.finishedHole && p.holeIdxSynced === r.currentHoleIdx;
+            const liveTot = (p.totalScore || 0) + (done ? 0 : (p.strokes || 0));
+            const div = document.createElement('div');
+            div.className = 'flex items-center justify-between px-2 py-1 rounded-xl bg-white/5';
+            div.innerHTML = `
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="font-bold text-amber-300 w-4">${idx + 1}.</span>
+                    <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${p.color}"></span>
+                    <span class="text-white font-medium truncate">${escapeHtml(p.name)}</span>
+                    ${done ? '<span class="text-emerald-400 text-[11px] font-bold">✓</span>' : ''}
+                </div>
+                <span class="font-display font-bold text-emerald-200">${liveTot} colpi</span>
+            `;
+            rows.appendChild(div);
+        });
+    }
+
+    function renderResultsModal() {
+        const r = mp.roomData;
+        if (!r) return;
+        const players = Object.values(mp.playersMap).sort((a, b) => (a.totalScore || 0) - (b.totalScore || 0));
+        const podium = document.getElementById('results-podium');
+        podium.innerHTML = '';
+
+        const order = [1, 0, 2];
+        const heights = ['h-16', 'h-24', 'h-12'];
+        const medals = ['🥈', '🥇', '🥉'];
+        order.forEach((rankIdx, pos) => {
+            const p = players[rankIdx];
+            if (!p) return;
+            const col = document.createElement('div');
+            col.className = 'podium-col flex flex-col items-center w-24';
+            col.style.animationDelay = `${pos * 0.1}s`;
+            col.innerHTML = `
+                <div class="text-lg mb-0.5">${medals[pos]}</div>
+                <div class="text-xs font-bold text-white truncate max-w-full mb-1">${escapeHtml(p.name)}</div>
+                <div class="${heights[pos]} w-full rounded-t-2xl flex flex-col items-center justify-center border-t-2 border-white/30" style="background:${p.color}33">
+                    <span class="font-display text-lg font-bold text-white">${p.totalScore || 0}</span>
+                    <span class="text-[9px] uppercase text-white/80">colpi</span>
+                </div>
+            `;
+            podium.appendChild(col);
+        });
+
+        const head = document.getElementById('results-sc-head');
+        const body = document.getElementById('results-sc-body');
+        const holeOrder = r.holeOrder || [];
+
+        let hHtml = '<tr class="text-violet-300 border-b border-white/10"><th class="py-1.5 px-2">Giocatore</th>';
+        holeOrder.forEach((_, i) => { hHtml += `<th class="py-1.5 px-1.5 text-center">B${i + 1}</th>`; });
+        hHtml += '<th class="py-1.5 px-2 text-right">Tot</th></tr>';
+        head.innerHTML = hHtml;
+
+        body.innerHTML = '';
+        players.forEach((p, idx) => {
+            let row = `<td class="py-1.5 px-2 font-semibold flex items-center gap-1.5">
+                <span class="text-amber-300">${idx + 1}.</span>
+                <span class="w-2.5 h-2.5 rounded-full inline-block" style="background:${p.color}"></span>
+                ${escapeHtml(p.name)}
+            </td>`;
+            holeOrder.forEach((_, i) => {
+                const sc = Array.isArray(p.scores) && p.scores[i] !== undefined ? p.scores[i] : '-';
+                row += `<td class="py-1.5 px-1.5 text-center text-slate-200">${sc}</td>`;
+            });
+            row += `<td class="py-1.5 px-2 text-right font-display font-bold text-emerald-300">${p.totalScore || 0}</td>`;
+            const tr = document.createElement('tr');
+            tr.innerHTML = row;
+            body.appendChild(tr);
+        });
+
+        const hostNow = isHost();
+        document.getElementById('btn-rematch-host').classList.toggle('hidden', !hostNow);
+        document.getElementById('results-guest-wait').classList.toggle('hidden', hostNow);
+        modalResults.classList.remove('hidden');
+    }
+
+    function leaveRoom() {
+        if (mp.isHost) {
+            broadcastToClients({ type: 'HOST_CLOSED' });
+        }
+        leaveRoomLocal();
+    }
+
+    function cleanupPeer() {
+        clearTimeout(mp.joinTimeout);
+        mp.joinTimeout = null;
+        clearTimeout(mp.autoAdvanceTimer);
+        mp.autoAdvanceTimer = null;
+
+        for (const conn of Object.values(mp.connections)) {
+            try { conn.close(); } catch (_) {}
+        }
+        mp.connections = {};
+
+        if (mp.hostConn) {
+            try { mp.hostConn.close(); } catch (_) {}
+            mp.hostConn = null;
+        }
+        if (mp.peer) {
+            try { mp.peer.destroy(); } catch (_) {}
+            mp.peer = null;
+        }
+    }
+
+    function leaveRoomLocal() {
+        cleanupPeer();
+        mp.isHost = false;
+        mp.myId = null;
+        mp.roomCode = null;
+        mp.roomData = null;
+        mp.playersMap = {};
+        mp.remoteRenderPos = {};
+        inGame = false;
+        MenuBg.setActive(true);
+        drag.active = false;
+
+        screenLobby.classList.add('hidden');
+        gameHud.classList.add('hidden');
+        canvasContainer.classList.add('hidden');
+        modalResults.classList.add('hidden');
+        document.getElementById('mp-wait-banner').classList.add('hidden');
+        document.getElementById('mp-liveboard-panel').classList.add('hidden');
+        screenHome.classList.remove('hidden');
+        initPeerStatus();
+    }
+
+    // =========================================================================
+    // CARICAMENTO BUCA & HUD
+    // =========================================================================
+    function updateHUD() {
+        const h = getCurrentHole();
+        const r = mp.roomData;
+        const idx = r?.currentHoleIdx || 0;
+        const totalHoles = r?.holeOrder?.length || 1;
+        const myTot = myScores.reduce((a, b) => a + (b || 0), 0) + (ball.inHole ? 0 : strokes);
+
+        hudHoleName.textContent = h.name;
+        uiHole.textContent = `${idx + 1}/${totalHoles}`;
+        uiPar.textContent = h.par;
+        uiStrokes.textContent = strokes;
+        uiTotal.textContent = myTot;
+    }
+
+    function loadCurrentHole() {
+        const h = getCurrentHole();
+        strokes = 0;
+        ball.x = h.start.x; ball.y = h.start.y;
+        ball.vx = 0; ball.vy = 0;
+        ball.lastSafeX = h.start.x; ball.lastSafeY = h.start.y;
+        ball.inHole = false; ball.holeAnim = 0;
+        ball.inWater = false; ball.waterTimer = 0;
+        ball.onSand = false;
+        drag.active = false;
+        particles = [];
+        flagLift = 0;
+
+        activeWalls = [];
+        for (let i = 0; i < h.poly.length; i++) {
+            const a = h.poly[i];
+            const b = h.poly[(i + 1) % h.poly.length];
+            activeWalls.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+        }
+        for (const w of h.innerWalls) activeWalls.push({ ...w });
+
+        moversState = h.movers.map(m => ({ ...m }));
+        windmillsState = h.windmills.map(wm => ({ ...wm }));
+        bumperPulses = h.bumpers.map(() => 0);
+        decorItems = buildDecor(h);
+
+        // Reset posizione visiva avversari allo start della nuova buca
+        for (const uid of Object.keys(mp.remoteRenderPos)) {
+            mp.remoteRenderPos[uid] = { x: h.start.x, y: h.start.y };
+        }
+
+        updateHUD();
+        const idx = mp.roomData?.currentHoleIdx || 0;
+        showToast(`Buca ${idx + 1}: ${h.name} (Par ${h.par})`, 2000);
+
+        syncMyPlayerState(true, {
+            finishedHole: false,
+            scores: myScores,
+            totalScore: myScores.reduce((a, b) => a + (b || 0), 0)
+        });
+    }
+
+    // =========================================================================
+    // GEOMETRIA & DECORAZIONI
+    // =========================================================================
+    function pointInPoly(px, py, poly) {
+        let inside = false;
+        for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+            const xi = poly[i].x, yi = poly[i].y;
+            const xj = poly[j].x, yj = poly[j].y;
+            const intersect = ((yi > py) !== (yj > py)) &&
+                (px < (xj - xi) * (py - yi) / (yj - yi + 0.00001) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+
+    function distPointToPoly(px, py, poly) {
+        let minD = Infinity;
+        for (let i = 0; i < poly.length; i++) {
+            const a = poly[i], b = poly[(i + 1) % poly.length];
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const lenSq = dx * dx + dy * dy || 1;
+            const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / lenSq));
+            const d = Math.hypot(px - (a.x + t * dx), py - (a.y + t * dy));
+            if (d < minD) minD = d;
+        }
+        return minD;
+    }
+
+    function buildDecor(hole) {
+        const items = [];
+        let seed = hole.id * 9301 + 49297;
+        const rand = () => {
+            seed = (seed * 16807) % 2147483647;
+            return (seed - 1) / 2147483646;
+        };
+        for (let i = 0; i < 40; i++) {
+            const x = 16 + rand() * (LOGICAL_W - 32);
+            const y = 16 + rand() * (LOGICAL_H - 32);
+            if (!pointInPoly(x, y, hole.poly) && distPointToPoly(x, y, hole.poly) > 22) {
+                items.push({
+                    x, y, r: 8 + rand() * 11,
+                    type: hole.bg === 'water' ? (rand() > 0.4 ? 'lily' : 'rock') : (rand() > 0.35 ? 'tree' : 'bush')
+                });
+            }
+        }
+        return items;
+    }
+
+    // =========================================================================
+    // CANVAS RESPONSIVE
+    // =========================================================================
+    function resizeCanvas() {
+        const rect = canvasContainer.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+        const availW = rect.width - 10;
+        const availH = rect.height - 10;
+        canvasScale = Math.max(0.45, Math.min(availW / LOGICAL_W, availH / LOGICAL_H));
+
+        const cssW = Math.floor(LOGICAL_W * canvasScale);
+        const cssH = Math.floor(LOGICAL_H * canvasScale);
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+        canvas.width = Math.floor(cssW * dpr);
+        canvas.height = Math.floor(cssH * dpr);
+        ctx.setTransform(dpr * canvasScale, 0, 0, dpr * canvasScale, 0, 0);
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    // =========================================================================
+    // CONTROLLI SLINGSHOT
+    // =========================================================================
+    function isBallMoving() {
+        return Math.hypot(ball.vx, ball.vy) > STOP_SPEED || ball.inHole || ball.inWater;
+    }
+
+    function getPointerPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - rect.left) / canvasScale,
+            y: (e.clientY - rect.top) / canvasScale
+        };
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+        if (!inGame || isBallMoving()) return;
+        Sound.init();
+        const pos = getPointerPos(e);
+        drag.active = true;
+        drag.pointerId = e.pointerId;
+        drag.startX = pos.x; drag.startY = pos.y;
+        drag.currX = pos.x; drag.currY = pos.y;
+        try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+
+    window.addEventListener('pointermove', (e) => {
+        if (!drag.active || e.pointerId !== drag.pointerId) return;
+        const pos = getPointerPos(e);
+        drag.currX = pos.x; drag.currY = pos.y;
+    });
+
+    window.addEventListener('pointerup', (e) => {
+        if (!drag.active || e.pointerId !== drag.pointerId) return;
+        drag.active = false;
+
+        const dx = drag.startX - drag.currX;
+        const dy = drag.startY - drag.currY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > CANCEL_DRAG) {
+            const clamped = Math.min(dist, MAX_DRAG);
+            const powerRatio = clamped / MAX_DRAG;
+            const speed = powerRatio * MAX_POWER;
+            ball.lastSafeX = ball.x;
+            ball.lastSafeY = ball.y;
+            ball.vx = (dx / dist) * speed;
+            ball.vy = (dy / dist) * speed;
+            strokes++;
+            updateHUD();
+            Sound.playHit(powerRatio);
+            syncMyPlayerState(true);
+
+            if (!hasPlayedShot) {
+                hasPlayedShot = true;
+                hintBanner.style.opacity = '0';
+            }
+        }
+    });
+
+    window.addEventListener('pointercancel', () => { drag.active = false; });
+
+    // =========================================================================
+    // PARTICELLE
+    // =========================================================================
+    function spawnConfetti(x, y) {
+        const colors = ['#facc15', '#34d399', '#38bdf8', '#fb7185', '#c084fc', '#ffffff'];
+        for (let i = 0; i < 46; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const spd = 1.5 + Math.random() * 4.8;
+            particles.push({
+                x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd - 1.6,
+                size: 3 + Math.random() * 4, color: colors[i % colors.length],
+                life: 1, decay: 0.015 + Math.random() * 0.012, gravity: 0.07,
+                rot: Math.random() * Math.PI, vrot: (Math.random() - 0.5) * 0.28,
+                type: 'confetti'
+            });
+        }
+    }
+
+    function spawnSplash(x, y) {
+        for (let i = 0; i < 22; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const spd = 1 + Math.random() * 3.4;
+            particles.push({
+                x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+                size: 2.5 + Math.random() * 3, color: i % 2 === 0 ? '#bae6fd' : '#38bdf8',
+                life: 1, decay: 0.03, gravity: 0.04, type: 'circle'
+            });
+        }
+    }
+
+    function spawnBumperSparks(x, y) {
+        for (let i = 0; i < 10; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const spd = 1.2 + Math.random() * 2.5;
+            particles.push({
+                x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+                size: 2 + Math.random() * 2, color: '#fda4af',
+                life: 0.8, decay: 0.045, gravity: 0, type: 'circle'
+            });
+        }
+    }
+
+    // =========================================================================
+    // FISICA 2D (8 SUB-STEP PER FRAME)
+    // =========================================================================
+    function collideSegment(x1, y1, x2, y2, restitution = 0.84, extraRadius = 0) {
+        const dx = x2 - x1, dy = y2 - y1;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq === 0) return 0;
+
+        let t = ((ball.x - x1) * dx + (ball.y - y1) * dy) / lenSq;
+        t = Math.max(0, Math.min(1, t));
+        const cx = x1 + t * dx, cy = y1 + t * dy;
+
+        const distX = ball.x - cx, distY = ball.y - cy;
+        const minR = BALL_R + extraRadius;
+        const distSq = distX * distX + distY * distY;
+
+        if (distSq < minR * minR && distSq > 0.00001) {
+            const dist = Math.sqrt(distSq);
+            const nx = distX / dist, ny = distY / dist;
+            ball.x += nx * (minR - dist);
+            ball.y += ny * (minR - dist);
+            const dot = ball.vx * nx + ball.vy * ny;
+            if (dot < 0) {
+                ball.vx -= (1 + restitution) * dot * nx;
+                ball.vy -= (1 + restitution) * dot * ny;
+                return Math.abs(dot);
+            }
+        }
+        return 0;
+    }
+
+    function collideRect(rx, ry, rw, rh, restitution = 0.86) {
+        let hit = 0;
+        hit = Math.max(hit, collideSegment(rx, ry, rx + rw, ry, restitution));
+        hit = Math.max(hit, collideSegment(rx + rw, ry, rx + rw, ry + rh, restitution));
+        hit = Math.max(hit, collideSegment(rx + rw, ry + rh, rx, ry + rh, restitution));
+        hit = Math.max(hit, collideSegment(rx, ry + rh, rx, ry, restitution));
+        return hit;
+    }
+
+    function collideBumper(cx, cy, r, idx) {
+        const dx = ball.x - cx, dy = ball.y - cy;
+        const minDist = BALL_R + r;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < minDist * minDist && distSq > 0.00001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist, ny = dy / dist;
+            ball.x += nx * (minDist - dist);
+            ball.y += ny * (minDist - dist);
+            const dot = ball.vx * nx + ball.vy * ny;
+            if (dot < 0) {
+                ball.vx -= (1 + 1.2) * dot * nx;
+                ball.vy -= (1 + 1.2) * dot * ny;
+                if (Math.hypot(ball.vx, ball.vy) < 3.6) {
+                    ball.vx = nx * 3.8; ball.vy = ny * 3.8;
+                }
+                bumperPulses[idx] = 1;
+                spawnBumperSparks(cx + nx * r, cy + ny * r);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function collideWindmill(wm) {
+        let hit = 0;
+        const stepAngle = (Math.PI * 2) / wm.blades;
+        for (let b = 0; b < wm.blades; b++) {
+            const a = wm.angle + b * stepAngle;
+            const x2 = wm.x + Math.cos(a) * wm.len;
+            const y2 = wm.y + Math.sin(a) * wm.len;
+            const h = collideSegment(wm.x, wm.y, x2, y2, 0.88, wm.thick * 0.5);
+            if (h > 0) {
+                const tx = -Math.sin(a) * Math.sign(wm.omega);
+                const ty = Math.cos(a) * Math.sign(wm.omega);
+                ball.vx += tx * 0.9;
+                ball.vy += ty * 0.9;
+                hit = Math.max(hit, h + 1.2);
+            }
+        }
+        return hit;
+    }
+
+    function computeAimPath(ox, oy, dx, dy, maxLen) {
+        let bestT = maxLen, hitNx = 0, hitNy = 0, didHit = false;
+        for (const w of activeWalls) {
+            const sx = w.x2 - w.x1, sy = w.y2 - w.y1;
+            const denom = dx * sy - dy * sx;
+            if (Math.abs(denom) < 0.0001) continue;
+            const t = ((w.x1 - ox) * sy - (w.y1 - oy) * sx) / denom;
+            const u = ((w.x1 - ox) * dy - (w.y1 - oy) * dx) / denom;
+            if (t > 4 && t < bestT && u >= 0 && u <= 1) {
+                bestT = t;
+                const len = Math.hypot(sx, sy) || 1;
+                let nx = -sy / len, ny = sx / len;
+                if (dx * nx + dy * ny > 0) { nx = -nx; ny = -ny; }
+                hitNx = nx; hitNy = ny; didHit = true;
+            }
+        }
+        const p1 = { x: ox + dx * bestT, y: oy + dy * bestT };
+        if (!didHit || maxLen - bestT < 12) return { p1, p2: null };
+        const dot = dx * hitNx + dy * hitNy;
+        const rx = dx - 2 * dot * hitNx;
+        const ry = dy - 2 * dot * hitNy;
+        const rem = Math.min(55, (maxLen - bestT) * 0.75);
+        return { p1, p2: { x: p1.x + rx * rem, y: p1.y + ry * rem } };
+    }
+
+    function updatePhysics() {
+        if (!inGame) return;
+        const h = getCurrentHole();
+        animTime += 0.016;
+
+        // Interpolazione fluida (lerp) per le palline degli altri giocatori
+        if (mp.myId) {
+            for (const p of Object.values(mp.playersMap)) {
+                if (p.uid === mp.myId) continue;
+                if (!mp.remoteRenderPos[p.uid]) {
+                    mp.remoteRenderPos[p.uid] = { x: p.x, y: p.y };
+                } else {
+                    mp.remoteRenderPos[p.uid].x += (p.x - mp.remoteRenderPos[p.uid].x) * 0.24;
+                    mp.remoteRenderPos[p.uid].y += (p.y - mp.remoteRenderPos[p.uid].y) * 0.24;
+                }
+            }
+        }
+
+        for (let i = 0; i < bumperPulses.length; i++) {
+            if (bumperPulses[i] > 0) bumperPulses[i] = Math.max(0, bumperPulses[i] - 0.07);
+        }
+
+        for (const m of moversState) {
+            if (m.axis === 'x') {
+                m.x += m.speed * m.dir;
+                if (m.x <= m.min) { m.x = m.min; m.dir = 1; }
+                if (m.x >= m.max) { m.x = m.max; m.dir = -1; }
+            } else {
+                m.y += m.speed * m.dir;
+                if (m.y <= m.min) { m.y = m.min; m.dir = 1; }
+                if (m.y >= m.max) { m.y = m.max; m.dir = -1; }
+            }
+        }
+        for (const wm of windmillsState) wm.angle += wm.omega;
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx; p.y += p.vy;
+            p.vy += p.gravity; p.life -= p.decay;
+            if (p.rot !== undefined) p.rot += p.vrot;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+
+        if (ball.inHole) {
+            ball.holeAnim = Math.min(1, ball.holeAnim + 0.075);
+            ball.x += (h.hole.x - ball.x) * 0.28;
+            ball.y += (h.hole.y - ball.y) * 0.28;
+            return;
+        }
+
+        if (ball.inWater) {
+            ball.waterTimer--;
+            if (ball.waterTimer <= 0) {
+                ball.inWater = false;
+                ball.x = ball.lastSafeX;
+                ball.y = ball.lastSafeY;
+                ball.vx = 0; ball.vy = 0;
+                syncMyPlayerState(true);
+            }
+            return;
+        }
+
+        const distToHole = Math.hypot(ball.x - h.hole.x, ball.y - h.hole.y);
+        flagLift += ((distToHole < 68 ? 1 : 0) - flagLift) * 0.14;
+
+        const wasMoving = Math.hypot(ball.vx, ball.vy) > STOP_SPEED;
+        let wallHitMax = 0, bumperHit = false, onBoost = false;
+
+        for (let s = 0; s < SUBSTEPS; s++) {
+            ball.x += ball.vx / SUBSTEPS;
+            ball.y += ball.vy / SUBSTEPS;
+
+            for (const bp of h.boosts) {
+                if (ball.x > bp.x && ball.x < bp.x + bp.w && ball.y > bp.y && ball.y < bp.y + bp.h) {
+                    ball.vx += (bp.dx * bp.force) / SUBSTEPS;
+                    ball.vy += (bp.dy * bp.force) / SUBSTEPS;
+                    onBoost = true;
+                }
+            }
+            for (const sl of h.slopes) {
+                if (ball.x > sl.x && ball.x < sl.x + sl.w && ball.y > sl.y && ball.y < sl.y + sl.h) {
+                    ball.vx += sl.gx / SUBSTEPS;
+                    ball.vy += sl.gy / SUBSTEPS;
+                }
+            }
+            for (const w of activeWalls) {
+                wallHitMax = Math.max(wallHitMax, collideSegment(w.x1, w.y1, w.x2, w.y2, 0.84));
+            }
+            for (const m of moversState) {
+                wallHitMax = Math.max(wallHitMax, collideRect(m.x, m.y, m.w, m.h, 0.88));
+            }
+            for (const wm of windmillsState) {
+                wallHitMax = Math.max(wallHitMax, collideWindmill(wm));
+            }
+            for (let i = 0; i < h.bumpers.length; i++) {
+                if (collideBumper(h.bumpers[i].x, h.bumpers[i].y, h.bumpers[i].r, i)) bumperHit = true;
+            }
+
+            const dxH = h.hole.x - ball.x, dyH = h.hole.y - ball.y;
+            const dH = Math.hypot(dxH, dyH);
+            const spd = Math.hypot(ball.vx, ball.vy);
+
+            if (dH < HOLE_R) {
+                if (spd < 5.3) {
+                    const pull = 0.085 / SUBSTEPS;
+                    ball.vx += (dxH / (dH + 0.01)) * pull;
+                    ball.vy += (dyH / (dH + 0.01)) * pull;
+                    if (dH < HOLE_R * 0.68 && spd < 4.5) {
+                        triggerHoleIn();
+                        return;
+                    }
+                } else if (dH < HOLE_R * 0.85) {
+                    ball.vx *= 0.985; ball.vy *= 0.985;
+                }
+            }
+        }
+
+        if (wallHitMax > 0.35) Sound.playWall(wallHitMax);
+        if (bumperHit) Sound.playBumper();
+        if (onBoost && Math.hypot(ball.vx, ball.vy) > 0.5) Sound.playBoost();
+
+        for (const w of h.water) {
+            if (ball.x > w.x + 2 && ball.x < w.x + w.w - 2 && ball.y > w.y + 2 && ball.y < w.y + w.h - 2) {
+                ball.inWater = true;
+                ball.waterTimer = 42;
+                ball.vx = 0; ball.vy = 0;
+                strokes++;
+                updateHUD();
+                Sound.playSplash();
+                spawnSplash(ball.x, ball.y);
+                showToast("Acqua! Penalità +1 colpo", 1600);
+                syncMyPlayerState(true);
+                return;
+            }
+        }
+
+        let inSandNow = false;
+        for (const s of h.sand) {
+            const nx = (ball.x - s.x) / s.rx, ny = (ball.y - s.y) / s.ry;
+            if (nx * nx + ny * ny <= 1) { inSandNow = true; break; }
+        }
+        const spdNow = Math.hypot(ball.vx, ball.vy);
+        if (inSandNow && !ball.onSand && spdNow > 1.1) Sound.playSand();
+        ball.onSand = inSandNow;
+
+        const fric = inSandNow ? SAND_FRICTION : BASE_FRICTION;
+        ball.vx *= fric; ball.vy *= fric;
+        const isMovingNow = Math.hypot(ball.vx, ball.vy) >= STOP_SPEED;
+        if (!isMovingNow) { ball.vx = 0; ball.vy = 0; }
+
+        if (isMovingNow) syncMyPlayerState(false);
+        else if (wasMoving) syncMyPlayerState(true);
+    }
+
+    function triggerHoleIn() {
+        const h = getCurrentHole();
+        const idx = mp.roomData?.currentHoleIdx || 0;
+        ball.inHole = true;
+        ball.vx = 0; ball.vy = 0;
+        Sound.playHole(strokes <= h.par - 1 || strokes === 1);
+        spawnConfetti(h.hole.x, h.hole.y);
+
+        myScores[idx] = strokes;
+        const totalScore = myScores.reduce((a, b) => a + (b || 0), 0);
+        updateHUD();
+
+        document.getElementById('mp-wait-title').textContent = `Imbucata in ${strokes} ${strokes === 1 ? 'colpo' : 'colpi'}! ✓`;
+        document.getElementById('mp-wait-banner').classList.remove('hidden');
+        updateHostForceButtons();
+
+        syncMyPlayerState(true, {
+            finishedHole: true,
+            scores: myScores,
+            totalScore
+        });
+    }
+
+    // =========================================================================
+    // RENDERING CANVAS 2D
+    // =========================================================================
+    function tracePoly(poly) {
+        ctx.beginPath();
+        ctx.moveTo(poly[0].x, poly[0].y);
+        for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
+        ctx.closePath();
+    }
+
+    function draw() {
+        if (!inGame) return;
+        const h = getCurrentHole();
+        ctx.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
+
+        // Sfondo
+        if (h.bg === 'water') {
+            const wg = ctx.createLinearGradient(0, 0, 0, LOGICAL_H);
+            wg.addColorStop(0, '#075985'); wg.addColorStop(1, '#0c4a6e');
+            ctx.fillStyle = wg; ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+            ctx.strokeStyle = 'rgba(186, 230, 253, 0.14)'; ctx.lineWidth = 2;
+            for (let y = 20; y < LOGICAL_H; y += 36) {
+                const off = Math.sin(animTime * 1.8 + y * 0.08) * 10;
+                ctx.beginPath(); ctx.moveTo(15 + off, y);
+                ctx.quadraticCurveTo(LOGICAL_W / 2 + off, y - 8, LOGICAL_W - 15 + off, y);
+                ctx.stroke();
+            }
+        } else {
+            ctx.fillStyle = '#123626'; ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+        }
+
+        // Decorazioni
+        for (const d of decorItems) {
+            ctx.save();
+            if (d.type === 'tree') {
+                ctx.fillStyle = 'rgba(0,0,0,0.25)';
+                ctx.beginPath(); ctx.arc(d.x + 3, d.y + 4, d.r, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#166534';
+                ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#22c55e';
+                ctx.beginPath(); ctx.arc(d.x - d.r * 0.25, d.y - d.r * 0.25, d.r * 0.55, 0, Math.PI * 2); ctx.fill();
+            } else if (d.type === 'bush') {
+                ctx.fillStyle = '#15803d';
+                ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.75, 0, Math.PI * 2); ctx.fill();
+            } else if (d.type === 'lily') {
+                ctx.fillStyle = '#15803d';
+                ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.65, 0.3, Math.PI * 2); ctx.lineTo(d.x, d.y); ctx.fill();
+            } else {
+                ctx.fillStyle = '#475569';
+                ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.6, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // Ombra poligono
+        ctx.save(); ctx.translate(4, 6); tracePoly(h.poly);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.38)'; ctx.fill(); ctx.restore();
+
+        // Terreno ritagliato
+        ctx.save(); tracePoly(h.poly); ctx.clip();
+        const stripeH = 24;
+        for (let y = 0; y < LOGICAL_H; y += stripeH) {
+            ctx.fillStyle = (Math.floor(y / stripeH) % 2 === 0) ? '#2f8f5b' : '#298251';
+            ctx.fillRect(0, y, LOGICAL_W, stripeH + 1);
+        }
+        tracePoly(h.poly); ctx.lineWidth = 14; ctx.strokeStyle = 'rgba(0, 0, 0, 0.16)'; ctx.stroke();
+
+        // Pendenze
+        for (const sl of h.slopes) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(250, 204, 21, 0.14)'; ctx.strokeStyle = 'rgba(250, 204, 21, 0.45)'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.roundRect(sl.x, sl.y, sl.w, sl.h, 10); ctx.fill(); ctx.stroke();
+            ctx.strokeStyle = 'rgba(254, 240, 138, 0.6)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+            const dirX = Math.sign(sl.gx) || 1;
+            for (let sx = sl.x + 24; sx < sl.x + sl.w - 15; sx += 28) {
+                for (let sy = sl.y + 22; sy < sl.y + sl.h - 15; sy += 28) {
+                    ctx.beginPath();
+                    ctx.moveTo(sx - dirX * 5, sy - 6); ctx.lineTo(sx + dirX * 5, sy); ctx.lineTo(sx - dirX * 5, sy + 6);
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        // Sabbia
+        for (const s of h.sand) {
+            ctx.save();
+            ctx.beginPath(); ctx.ellipse(s.x, s.y, s.rx, s.ry, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#e7ca8b'; ctx.fill();
+            ctx.lineWidth = 3; ctx.strokeStyle = '#c59f57'; ctx.stroke();
+            ctx.restore();
+        }
+
+        // Acqua interna
+        for (const w of h.water) {
+            ctx.save();
+            const g = ctx.createLinearGradient(w.x, w.y, w.x, w.y + w.h);
+            g.addColorStop(0, '#0284c7'); g.addColorStop(1, '#0369a1');
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.roundRect(w.x, w.y, w.w, w.h, 8); ctx.fill();
+            ctx.lineWidth = 2; ctx.strokeStyle = '#7dd3fc'; ctx.stroke();
+            ctx.restore();
+        }
+
+        // Boost
+        for (const bp of h.boosts) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.32)'; ctx.strokeStyle = '#34d399'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.roundRect(bp.x, bp.y, bp.w, bp.h, 8); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.rect(bp.x, bp.y, bp.w, bp.h); ctx.clip();
+            const phase = (animTime * 50) % 22;
+            ctx.strokeStyle = 'rgba(255,255,255,0.88)'; ctx.lineWidth = 2.8; ctx.lineCap = 'round';
+            const cx = bp.x + bp.w / 2;
+            for (let off = -22; off <= bp.h + 22; off += 22) {
+                const y = bp.dy < 0 ? (bp.y + bp.h - off - phase) : (bp.y + off + phase);
+                const dir = bp.dy < 0 ? -1 : 1;
+                ctx.beginPath(); ctx.moveTo(cx - 11, y - dir * 5); ctx.lineTo(cx, y + dir * 5); ctx.lineTo(cx + 11, y - dir * 5); ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // Tee & Buca
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.beginPath(); ctx.roundRect(h.start.x - 20, h.start.y - 12, 40, 24, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(h.hole.x, h.hole.y, HOLE_R, 0, Math.PI * 2);
+        ctx.fillStyle = '#0f172a'; ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.stroke();
+        ctx.restore();
+
+        // Bumper
+        for (let i = 0; i < h.bumpers.length; i++) {
+            const bmp = h.bumpers[i];
+            const rDraw = bmp.r * (1 + bumperPulses[i] * 0.22);
+            ctx.save();
+            ctx.beginPath(); ctx.arc(bmp.x + 2, bmp.y + 4, rDraw, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fill();
+            const g = ctx.createRadialGradient(bmp.x - 4, bmp.y - 4, 2, bmp.x, bmp.y, rDraw);
+            g.addColorStop(0, '#fda4af'); g.addColorStop(1, '#e11d48');
+            ctx.beginPath(); ctx.arc(bmp.x, bmp.y, rDraw, 0, Math.PI * 2);
+            ctx.fillStyle = g; ctx.fill();
+            ctx.lineWidth = 3; ctx.strokeStyle = '#fff1f2'; ctx.stroke();
+            ctx.restore();
+        }
+
+        // Ostacoli mobili
+        for (const m of moversState) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.32)';
+            ctx.beginPath(); ctx.roundRect(m.x + 2, m.y + 4, m.w, m.h, 6); ctx.fill();
+            ctx.fillStyle = '#d97706'; ctx.strokeStyle = '#fef3c7'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.roundRect(m.x, m.y, m.w, m.h, 6); ctx.fill(); ctx.stroke();
+            ctx.restore();
+        }
+
+        // Pale rotanti
+        for (const wm of windmillsState) {
+            ctx.save(); ctx.translate(wm.x, wm.y); ctx.rotate(wm.angle);
+            const stepA = (Math.PI * 2) / wm.blades;
+            for (let b = 0; b < wm.blades; b++) {
+                ctx.save(); ctx.rotate(b * stepA);
+                ctx.fillStyle = '#b45309'; ctx.strokeStyle = '#fde68a'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.roundRect(0, -wm.thick / 2, wm.len, wm.thick, 5); ctx.fill(); ctx.stroke();
+                ctx.restore();
+            }
+            ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2);
+            ctx.fillStyle = '#78350f'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#fef3c7'; ctx.stroke();
+            ctx.restore();
+        }
+
+        // Sponde 3D
+        ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 11;
+        for (const w of activeWalls) { ctx.beginPath(); ctx.moveTo(w.x1 + 2, w.y1 + 3); ctx.lineTo(w.x2 + 2, w.y2 + 3); ctx.stroke(); }
+        ctx.strokeStyle = '#78350f'; ctx.lineWidth = 10;
+        for (const w of activeWalls) { ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2); ctx.stroke(); }
+        ctx.strokeStyle = '#d97706'; ctx.lineWidth = 5.5;
+        for (const w of activeWalls) { ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2); ctx.stroke(); }
+        ctx.restore();
+
+        // Palline avversarie con interpolazione fluida
+        if (mp.myId && mp.roomData) {
+            for (const p of Object.values(mp.playersMap)) {
+                if (p.uid === mp.myId) continue;
+                if (p.finishedHole && p.holeIdxSynced === mp.roomData.currentHoleIdx) continue;
+                const pos = mp.remoteRenderPos[p.uid] || { x: p.x, y: p.y };
+                ctx.save();
+                ctx.globalAlpha = 0.68;
+                ctx.beginPath(); ctx.arc(pos.x, pos.y, BALL_R, 0, Math.PI * 2);
+                ctx.fillStyle = p.color || '#38bdf8'; ctx.fill();
+                ctx.lineWidth = 1.8; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+
+                ctx.font = 'bold 9px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+                const tw = ctx.measureText(p.name).width + 8;
+                ctx.beginPath(); ctx.roundRect(pos.x - tw / 2, pos.y - 23, tw, 13, 5); ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(p.name, pos.x, pos.y - 13.5);
+                ctx.restore();
+            }
+        }
+
+        // Propria pallina
+        if (!ball.inWater) {
+            const sc = ball.inHole ? Math.max(0, 1 - ball.holeAnim) : 1;
+            if (sc > 0.02) {
+                const myColor = (mp.myId && mp.playersMap[mp.myId]?.color) || '#ffffff';
+                ctx.save(); ctx.translate(ball.x, ball.y); ctx.scale(sc, sc);
+                ctx.beginPath(); ctx.arc(2.2, 3.2, BALL_R, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0,0,0,0.34)'; ctx.fill();
+                const bg = ctx.createRadialGradient(-2.5, -2.5, 1, 0, 0, BALL_R);
+                bg.addColorStop(0, '#ffffff'); bg.addColorStop(0.75, myColor); bg.addColorStop(1, '#94a3b8');
+                ctx.beginPath(); ctx.arc(0, 0, BALL_R, 0, Math.PI * 2);
+                ctx.fillStyle = bg; ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Bandierina animata
+        if (!ball.inHole || ball.holeAnim < 0.8) {
+            const liftY = flagLift * 28;
+            const fx = h.hole.x, fy = h.hole.y - liftY;
+            ctx.save(); ctx.globalAlpha = 1 - flagLift * 0.45;
+            ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy - 42); ctx.stroke();
+            const wave = Math.sin(animTime * 5) * 3;
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.moveTo(fx, fy - 42);
+            ctx.quadraticCurveTo(fx + 14, fy - 39 + wave, fx + 26, fy - 34 + wave * 0.6);
+            ctx.lineTo(fx, fy - 25); ctx.closePath(); ctx.fill();
+            ctx.restore();
+        }
+
+        // Mira Slingshot + anteprima primo rimbalzo
+        if (drag.active) {
+            const dx = drag.startX - drag.currX, dy = drag.startY - drag.currY;
+            const dist = Math.hypot(dx, dy);
+            if (dist > CANCEL_DRAG) {
+                const clamped = Math.min(dist, MAX_DRAG);
+                const ratio = clamped / MAX_DRAG;
+                const nx = dx / dist, ny = dy / dist;
+                const color = `hsl(${Math.round(125 * (1 - ratio))}, 92%, 55%)`;
+                const path = computeAimPath(ball.x, ball.y, nx, ny, 35 + ratio * 155);
+
+                ctx.save();
+                ctx.strokeStyle = color; ctx.lineWidth = 3.2; ctx.lineCap = 'round'; ctx.setLineDash([7, 7]);
+                ctx.beginPath(); ctx.moveTo(ball.x + nx * 12, ball.y + ny * 12);
+                ctx.lineTo(path.p1.x, path.p1.y);
+                if (path.p2) ctx.lineTo(path.p2.x, path.p2.y);
+                ctx.stroke(); ctx.setLineDash([]);
+
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, BALL_R + 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
+                ctx.strokeStyle = color; ctx.lineWidth = 3.5; ctx.stroke();
+
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+                ctx.beginPath(); ctx.roundRect(ball.x - 23, ball.y + 16, 46, 19, 8); ctx.fill();
+                ctx.fillStyle = color; ctx.font = 'bold 11px Inter, sans-serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(`${Math.round(ratio * 100)}%`, ball.x, ball.y + 25.5);
+                ctx.restore();
+            } else {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+                ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_R + 8, 0, Math.PI * 2); ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // Particelle
+        for (const p of particles) {
+            ctx.save(); ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.color;
+            if (p.type === 'confetti') {
+                ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+                ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+            } else {
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.restore();
+        }
+    }
+
+    function gameLoop() {
+        updatePhysics();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    // =========================================================================
+    // EVENTI UI
+    // =========================================================================
+    function setMaxPlayers(p) {
+        setup.maxPlayers = Math.max(2, Math.min(6, p));
+        document.getElementById('lbl-max-players').textContent = setup.maxPlayers;
+        document.querySelectorAll('.btn-max-p').forEach(btn => {
+            const val = parseInt(btn.dataset.p, 10);
+            btn.className = val === setup.maxPlayers
+                ? 'btn-max-p btn-3d py-1.5 rounded-xl text-xs font-bold border border-emerald-400 bg-emerald-400/25 text-white'
+                : 'btn-max-p btn-3d py-1.5 rounded-xl text-xs font-bold border border-white/10 bg-white/5 text-slate-200';
+        });
+    }
+
+    function setHolesCount(n) {
+        setup.holesCount = Math.max(1, Math.min(HOLES.length, n));
+        document.getElementById('lbl-holes-count').textContent = setup.holesCount;
+        document.getElementById('slider-holes').value = setup.holesCount;
+        document.querySelectorAll('.btn-holes-preset').forEach(btn => {
+            const val = parseInt(btn.dataset.n, 10);
+            btn.className = val === setup.holesCount
+                ? 'btn-holes-preset btn-3d py-1.5 rounded-xl text-xs font-bold border border-emerald-400 bg-emerald-400/25 text-white'
+                : 'btn-holes-preset btn-3d py-1.5 rounded-xl text-xs font-bold border border-white/10 bg-white/5 text-slate-200';
+        });
+    }
+
+    function setOrderMode(mode) {
+        setup.orderMode = mode;
+        document.querySelectorAll('.btn-order').forEach(btn => {
+            btn.className = btn.dataset.ord === mode
+                ? 'btn-order btn-3d py-2 rounded-xl text-xs font-bold border border-emerald-400 bg-emerald-400/25 text-white'
+                : 'btn-order btn-3d py-2 rounded-xl text-xs font-bold border border-white/10 bg-white/5 text-slate-200';
+        });
+    }
+
+    document.querySelectorAll('.btn-max-p').forEach(b => b.addEventListener('click', () => setMaxPlayers(parseInt(b.dataset.p, 10))));
+    document.querySelectorAll('.btn-holes-preset').forEach(b => b.addEventListener('click', () => setHolesCount(parseInt(b.dataset.n, 10))));
+    document.getElementById('btn-holes-minus').addEventListener('click', () => setHolesCount(setup.holesCount - 1));
+    document.getElementById('btn-holes-plus').addEventListener('click', () => setHolesCount(setup.holesCount + 1));
+    document.getElementById('slider-holes').addEventListener('input', (e) => setHolesCount(parseInt(e.target.value, 10)));
+    document.querySelectorAll('.btn-order').forEach(b => b.addEventListener('click', () => setOrderMode(b.dataset.ord)));
+
+    document.getElementById('btn-create-room').addEventListener('click', createRoom);
+    document.getElementById('btn-join-room').addEventListener('click', joinRoom);
+    document.getElementById('btn-start-match').addEventListener('click', hostStartOrRematch);
+    document.getElementById('btn-leave-lobby').addEventListener('click', leaveRoom);
+    document.getElementById('btn-hud-exit').addEventListener('click', leaveRoom);
+    document.getElementById('btn-results-home').addEventListener('click', leaveRoom);
+    document.getElementById('btn-rematch-host').addEventListener('click', hostStartOrRematch);
+
+    document.getElementById('btn-hud-liveboard').addEventListener('click', () => {
+        document.getElementById('mp-liveboard-panel').classList.toggle('hidden');
+    });
+    document.getElementById('btn-host-force-panel').addEventListener('click', hostAdvanceHole);
+    document.getElementById('btn-host-force-banner').addEventListener('click', hostAdvanceHole);
+
+    function copyTextFallback(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (_) {}
+        document.body.removeChild(ta);
+        return ok;
+    }
+
+    document.getElementById('btn-copy-code').addEventListener('click', () => {
+        const code = mp.roomCode || '';
+        if (copyTextFallback(code)) {
+            const btn = document.getElementById('btn-copy-code');
+            btn.textContent = '✓ Copiato!';
+            setTimeout(() => { btn.textContent = '📋 Copia Codice'; }, 1600);
+        }
+    });
+
+    document.getElementById('btn-share-code').addEventListener('click', async () => {
+        const code = mp.roomCode || '';
+        const text = `Unisciti alla mia lobby su MINI GOLF PRO! Codice stanza: ${code}`;
+        if (navigator.share) {
+            try { await navigator.share({ title: 'MINI GOLF PRO', text }); return; } catch (_) {}
+        }
+        if (copyTextFallback(text)) {
+            showBanner('lobby-alert', 'Invito copiato negli appunti!', false);
+        }
+    });
+
+    function toggleAudio() {
+        Sound.muted = !Sound.muted;
+        document.querySelectorAll('.icon-sound-on').forEach(el => el.classList.toggle('hidden', Sound.muted));
+        document.querySelectorAll('.icon-sound-off').forEach(el => el.classList.toggle('hidden', !Sound.muted));
+    }
+    document.getElementById('home-audio-btn').addEventListener('click', toggleAudio);
+    document.getElementById('btn-hud-audio').addEventListener('click', toggleAudio);
+
+    // Avvio
+    window.onload = function () {
+        setMaxPlayers(4);
+        setHolesCount(5);
+        setOrderMode('random');
+        resizeCanvas();
+        gameLoop();
+    };
+})();
+</script>
+</body>
+</html>
